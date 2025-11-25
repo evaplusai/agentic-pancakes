@@ -37,11 +37,13 @@ Join the Agentics Foundation TV5 Hackathon to build agentic AI solutions that so
 ## ✨ Features
 
 - 🛠️ **Interactive Setup Wizard** - Get started in minutes with guided project initialization
-- 🔧 **Tool Management** - Install and configure AI development tools with a single command
+- 🔧 **Tool Management** - Install and configure 17+ AI development tools with a single command
 - 🤖 **MCP Server** - Model Context Protocol support for seamless AI integration (STDIO & SSE)
 - 🎨 **Beautiful CLI** - Modern terminal UI with colors, spinners, and progress indicators
 - 📦 **Zero Config** - Sensible defaults that just work
 - 🌐 **Community Integration** - Direct links to Discord and resources
+- 🔌 **Agentic Integration** - Full JSON output support for automation and AI agent workflows
+- 🤫 **Quiet Mode** - Non-interactive operation for CI/CD and scripting
 
 ## 🚀 Quick Start
 
@@ -88,6 +90,27 @@ Options:
   -t, --tools <tools>   Tools to install (space-separated)
   --track <track>       Select hackathon track
   --team <name>         Set team name
+  --project <name>      Set project name
+  --mcp                 Enable MCP server
+  --json                Output result as JSON (implies --yes)
+  -q, --quiet           Suppress non-essential output
+```
+
+### Tools Options
+
+```bash
+npx agentics-hackathon tools [options]
+
+Options:
+  -l, --list            List all available tools
+  -c, --check           Check which tools are installed
+  -i, --install <tools> Install specific tools
+  --category <cat>      Filter by category
+  --available           Alias for --list
+  --json                Output result as JSON
+  -q, --quiet           Suppress non-essential output
+
+Categories: ai-assistants, orchestration, databases, cloud-platform, synthesis, python-frameworks
 ```
 
 ### Example Workflows
@@ -109,6 +132,87 @@ npx agentics-hackathon tools --install ruvector agentDb
 npx agentics-hackathon mcp sse --port 3000
 ```
 
+## 🤖 Agentic Integration
+
+All commands support `--json` output for seamless integration with AI agents and automation scripts.
+
+### JSON Output Examples
+
+```bash
+# Get hackathon info as JSON
+npx agentics-hackathon info --json
+
+# List tools with installation status
+npx agentics-hackathon tools --json
+
+# Filter tools by category
+npx agentics-hackathon tools --json --category orchestration
+
+# Check installed tools
+npx agentics-hackathon tools --check --json
+
+# Initialize project non-interactively
+npx agentics-hackathon init --json --project "my-agent" --team "AI Team" --track multi-agent-systems --mcp
+
+# Get project status
+npx agentics-hackathon status --json
+```
+
+### Example JSON Responses
+
+**Info Command:**
+```json
+{
+  "success": true,
+  "hackathon": {
+    "name": "Agentics Foundation TV5 Hackathon",
+    "tagline": "Building the Future of Agentic AI",
+    "sponsor": "Google Cloud"
+  },
+  "tracks": [...],
+  "resources": {
+    "website": "https://agentics.org/hackathon",
+    "discord": "https://discord.agentics.org"
+  }
+}
+```
+
+**Tools Command:**
+```json
+{
+  "success": true,
+  "tools": [
+    {
+      "name": "claudeFlow",
+      "displayName": "Claude Flow",
+      "category": "orchestration",
+      "installed": true,
+      "installCommand": "npx claude-flow@alpha init --force"
+    }
+  ],
+  "categories": ["ai-assistants", "orchestration", "databases", ...]
+}
+```
+
+### Automation Script Example
+
+```bash
+#!/bin/bash
+# Example: Set up a new hackathon project programmatically
+
+# Initialize project
+result=$(npx agentics-hackathon init --json --project "agent-swarm" --track multi-agent-systems)
+
+# Check if successful
+if echo "$result" | jq -e '.success' > /dev/null; then
+  echo "Project initialized successfully!"
+
+  # Get available orchestration tools
+  tools=$(npx agentics-hackathon tools --json --category orchestration)
+  echo "Available tools: $(echo $tools | jq '.tools[].name')"
+fi
+```
+
 ## 🏆 Hackathon Tracks
 
 ### 🎬 Entertainment Discovery
@@ -123,7 +227,7 @@ Create autonomous workflows with Claude, Gemini, and orchestration tools.
 ### 💡 Open Innovation
 Bring your own idea — any agentic AI solution that makes an impact.
 
-## 🔧 Available Tools
+## 🔧 Available Tools (17 Total)
 
 ### AI Assistants
 | Tool | Description | Install |
@@ -131,24 +235,39 @@ Bring your own idea — any agentic AI solution that makes an impact.
 | **Claude Code CLI** | Anthropic's AI coding assistant | `npm i -g @anthropic-ai/claude-code` |
 | **Google Gemini CLI** | Google's multimodal AI interface | `npm i -g @google/generative-ai-cli` |
 
-### Orchestration
+### Orchestration & Agent Frameworks
 | Tool | Description | Install |
 |------|-------------|---------|
-| **Claude Flow** | Multi-agent orchestration framework | `npx claude-flow@alpha init --force` |
+| **Claude Flow** | #1 agent orchestration - multi-agent swarms, 101 MCP tools | `npx claude-flow@alpha init --force` |
+| **Agentic Flow** | Production AI orchestration - 66 agents, 213 MCP tools | `npx agentic-flow init` |
+| **Flow Nexus** | Competitive agentic platform on MCP | `npx flow-nexus init` |
 | **Google ADK** | Agent Development Kit | `pip install google-adk` |
 
-### Databases
+### Databases & Memory
 | Tool | Description | Install |
 |------|-------------|---------|
 | **RuVector** | Vector database & embeddings | `npm install ruvector` |
 | **AgentDB** | Agentic AI state management | `npx agentdb init` |
-| **Agentic Synth** | Synthesis tools | `npx @ruvector/agentic-synth init` |
+
+### Synthesis & Advanced Tools
+| Tool | Description | Install |
+|------|-------------|---------|
+| **Agentic Synth** | Synthesis tools for agentic AI | `npx @ruvector/agentic-synth init` |
+| **Strange Loops** | Consciousness exploration SDK - emergent intelligence | `npx strange-loops init` |
+| **SPARC 2.0** | Autonomous vector coding agent with MCP | `npx sparc init` |
 
 ### Cloud Platform
 | Tool | Description | Install |
 |------|-------------|---------|
 | **Google Cloud CLI** | Full GCP SDK | [Installation Guide](https://cloud.google.com/sdk/docs/install) |
 | **Vertex AI SDK** | ML platform SDK | `pip install google-cloud-aiplatform` |
+
+### Python Frameworks
+| Tool | Description | Install |
+|------|-------------|---------|
+| **LionPride** | Python agentic AI framework | `pip install lionpride` |
+| **Agentic Framework** | Python framework for AI agents | `pip install agentic-framework` |
+| **OpenAI Agents SDK** | Lightweight multi-agent workflows | `pip install openai-agents` |
 
 ## 🔌 MCP Server
 

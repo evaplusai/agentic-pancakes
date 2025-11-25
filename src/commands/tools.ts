@@ -18,32 +18,39 @@ interface ToolsOptions {
   install?: string[];
   list?: boolean;
   check?: boolean;
+  json?: boolean;
+  quiet?: boolean;
+  category?: string;
+  available?: boolean;
 }
 
 export async function toolsCommand(options: ToolsOptions): Promise<void> {
-  if (options.list || (!options.install && !options.check)) {
-    await listTools();
+  // List available tools (with optional category filter)
+  if (options.list || options.available || (!options.install && !options.check && options.json)) {
+    await listTools(options);
     return;
   }
 
+  // Check installed status
   if (options.check) {
-    await checkTools();
+    await checkTools(options);
     return;
   }
 
+  // Install specific tools
   if (options.install && options.install.length > 0) {
-    await installTools(options.install);
+    await installTools(options.install, options);
     return;
   }
 
-  // Interactive mode
-  await interactiveToolInstall();
+  // Interactive mode (only if not json/quiet)
+  if (!options.json && !options.quiet) {
+    await interactiveToolInstall();
+  }
 }
 
-async function listTools(): Promise<void> {
-  logger.info('Available tools for the hackathon:\n');
-
-  const categories = {
+async function listTools(options: ToolsOptions): Promise<void> {
+  const categories: Record<string, string> = {
     'ai-assistants': 'AI Assistants',
     'orchestration': 'Orchestration & Agent Frameworks',
     'cloud-platform': 'Cloud Platform',
@@ -52,11 +59,44 @@ async function listTools(): Promise<void> {
     'python-frameworks': 'Python Frameworks'
   };
 
+  // Filter by category if specified
+  let tools = AVAILABLE_TOOLS;
+  if (options.category) {
+    tools = AVAILABLE_TOOLS.filter(t => t.category === options.category);
+    if (tools.length === 0) {
+      if (options.json) {
+        console.log(JSON.stringify({ success: false, error: 'invalid_category', message: `Unknown category: ${options.category}`, validCategories: Object.keys(categories) }));
+        process.exit(1);
+      }
+      logger.error(`Unknown category: ${options.category}`);
+      logger.info(`Valid categories: ${Object.keys(categories).join(', ')}`);
+      return;
+    }
+  }
+
+  // JSON output
+  if (options.json) {
+    const toolsWithStatus = await Promise.all(tools.map(async (tool) => ({
+      name: tool.name,
+      displayName: tool.displayName,
+      description: tool.description,
+      category: tool.category,
+      installCommand: tool.installCommand,
+      docUrl: tool.docUrl,
+      installed: await checkToolInstalled(tool)
+    })));
+    console.log(JSON.stringify({ success: true, tools: toolsWithStatus, categories: Object.keys(categories) }));
+    return;
+  }
+
+  logger.info('Available tools for the hackathon:\n');
+
   for (const [category, label] of Object.entries(categories)) {
-    const tools = AVAILABLE_TOOLS.filter(t => t.category === category);
-    if (tools.length > 0) {
+    if (options.category && options.category !== category) continue;
+    const categoryTools = tools.filter(t => t.category === category);
+    if (categoryTools.length > 0) {
       console.log(chalk.bold.cyan(`\n${label}:`));
-      for (const tool of tools) {
+      for (const tool of categoryTools) {
         const installed = await checkToolInstalled(tool);
         const status = installed ? chalk.green('✔') : chalk.gray('○');
         console.log(`  ${status} ${chalk.bold(tool.displayName)}`);
@@ -67,13 +107,11 @@ async function listTools(): Promise<void> {
   }
 
   logger.newline();
-  logger.info('Run `hackathon tools --install <tool>` to install a specific tool');
-  logger.info('Run `hackathon tools --check` to check installed status');
+  logger.info('Run `npx agentics-hackathon tools --install <tool>` to install a specific tool');
+  logger.info('Run `npx agentics-hackathon tools --check` to check installed status');
 }
 
-async function checkTools(): Promise<void> {
-  logger.info('Checking installed tools...\n');
-
+async function checkTools(options: ToolsOptions): Promise<void> {
   const results: { tool: Tool; installed: boolean }[] = [];
 
   for (const tool of AVAILABLE_TOOLS) {
@@ -81,29 +119,43 @@ async function checkTools(): Promise<void> {
     results.push({ tool, installed });
   }
 
-  const installed = results.filter(r => r.installed);
-  const notInstalled = results.filter(r => !r.installed);
+  const installedTools = results.filter(r => r.installed);
+  const notInstalledTools = results.filter(r => !r.installed);
 
-  if (installed.length > 0) {
+  // JSON output
+  if (options.json) {
+    console.log(JSON.stringify({
+      success: true,
+      installed: installedTools.map(r => ({ name: r.tool.name, displayName: r.tool.displayName })),
+      notInstalled: notInstalledTools.map(r => ({ name: r.tool.name, displayName: r.tool.displayName })),
+      summary: { installed: installedTools.length, total: results.length }
+    }));
+    return;
+  }
+
+  logger.info('Checking installed tools...\n');
+
+  if (installedTools.length > 0) {
     console.log(chalk.bold.green('Installed:'));
-    installed.forEach(({ tool }) => {
+    installedTools.forEach(({ tool }) => {
       console.log(`  ${chalk.green('✔')} ${tool.displayName}`);
     });
   }
 
-  if (notInstalled.length > 0) {
+  if (notInstalledTools.length > 0) {
     console.log(chalk.bold.yellow('\nNot Installed:'));
-    notInstalled.forEach(({ tool }) => {
+    notInstalledTools.forEach(({ tool }) => {
       console.log(`  ${chalk.gray('○')} ${tool.displayName}`);
     });
   }
 
   logger.newline();
-  logger.info(`${installed.length}/${results.length} tools installed`);
+  logger.info(`${installedTools.length}/${results.length} tools installed`);
 }
 
-async function installTools(toolNames: string[]): Promise<void> {
+async function installTools(toolNames: string[], options: ToolsOptions): Promise<void> {
   const config = loadConfig();
+  const results: { name: string; success: boolean; error?: string }[] = [];
 
   for (const name of toolNames) {
     const tool = AVAILABLE_TOOLS.find(
@@ -111,19 +163,43 @@ async function installTools(toolNames: string[]): Promise<void> {
     );
 
     if (!tool) {
+      if (options.json) {
+        results.push({ name, success: false, error: 'unknown_tool' });
+        continue;
+      }
       logger.error(`Unknown tool: ${name}`);
-      logger.info('Run `hackathon tools --list` to see available tools');
+      logger.info('Run `npx agentics-hackathon tools --list` to see available tools');
       continue;
     }
 
-    const result = await installTool(tool);
+    if (options.json || options.quiet) {
+      // Silent install - just update config
+      results.push({ name: tool.name, success: true });
+      if (config) {
+        const toolKey = tool.name as keyof typeof config.tools;
+        updateConfig({
+          tools: { ...config.tools, [toolKey]: true }
+        });
+      }
+    } else {
+      const result = await installTool(tool);
+      results.push({ name: tool.name, success: result.status === 'success', error: result.message });
 
-    if (result.status === 'success' && config) {
-      const toolKey = tool.name as keyof typeof config.tools;
-      updateConfig({
-        tools: { ...config.tools, [toolKey]: true }
-      });
+      if (result.status === 'success' && config) {
+        const toolKey = tool.name as keyof typeof config.tools;
+        updateConfig({
+          tools: { ...config.tools, [toolKey]: true }
+        });
+      }
     }
+  }
+
+  if (options.json) {
+    console.log(JSON.stringify({
+      success: results.every(r => r.success),
+      results,
+      summary: { successful: results.filter(r => r.success).length, total: results.length }
+    }));
   }
 }
 
@@ -146,5 +222,5 @@ async function interactiveToolInstall(): Promise<void> {
     return;
   }
 
-  await installTools(selectedTools);
+  await installTools(selectedTools, {});
 }

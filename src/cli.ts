@@ -15,7 +15,7 @@ import { BANNER, DISCORD_URL, WEBSITE_URL, HACKATHON_NAME } from './constants.js
 import { logger } from './utils/index.js';
 
 // Package version
-const version = '1.1.1';
+const version = '1.2.0';
 
 const program = new Command();
 
@@ -36,6 +36,10 @@ program
   .option('-t, --tools <tools...>', 'Tools to install (space-separated)')
   .option('--track <track>', 'Hackathon track to participate in')
   .option('--team <name>', 'Team name')
+  .option('--project <name>', 'Project name')
+  .option('--mcp', 'Enable MCP server')
+  .option('--json', 'Output result as JSON (implies --yes)')
+  .option('-q, --quiet', 'Suppress non-essential output')
   .action(async (options) => {
     await initCommand(options);
   });
@@ -47,6 +51,10 @@ program
   .option('-l, --list', 'List all available tools')
   .option('-c, --check', 'Check which tools are installed')
   .option('-i, --install <tools...>', 'Install specific tools')
+  .option('--category <category>', 'Filter by category (ai-assistants, orchestration, databases, cloud-platform, synthesis, python-frameworks)')
+  .option('--available', 'List available tools (alias for --list)')
+  .option('--json', 'Output result as JSON')
+  .option('-q, --quiet', 'Suppress non-essential output')
   .action(async (options) => {
     await toolsCommand(options);
   });
@@ -55,16 +63,20 @@ program
 program
   .command('status')
   .description('Show current hackathon project status')
-  .action(async () => {
-    await statusCommand();
+  .option('--json', 'Output result as JSON')
+  .option('-q, --quiet', 'Suppress non-essential output')
+  .action(async (options) => {
+    await statusCommand(options);
   });
 
 // Info command
 program
   .command('info')
   .description('Display hackathon information and resources')
-  .action(async () => {
-    await infoCommand();
+  .option('--json', 'Output result as JSON')
+  .option('-q, --quiet', 'Suppress non-essential output')
+  .action(async (options) => {
+    await infoCommand(options);
   });
 
 // MCP command
@@ -86,7 +98,12 @@ program
 program
   .command('discord')
   .description('Open Discord for team coordination and support')
-  .action(() => {
+  .option('--json', 'Output result as JSON')
+  .action((options) => {
+    if (options.json) {
+      console.log(JSON.stringify({ success: true, discord: DISCORD_URL }));
+      return;
+    }
     logger.box(
       `Join the Agentics Foundation Discord community!\n\n` +
       `${chalk.bold('Benefits:')}\n` +
@@ -106,7 +123,12 @@ program
   .command('website')
   .alias('web')
   .description('Open the hackathon website')
-  .action(() => {
+  .option('--json', 'Output result as JSON')
+  .action((options) => {
+    if (options.json) {
+      console.log(JSON.stringify({ success: true, website: WEBSITE_URL }));
+      return;
+    }
     logger.box(
       `Visit the official hackathon website:\n\n` +
       chalk.cyan.bold.underline(WEBSITE_URL),

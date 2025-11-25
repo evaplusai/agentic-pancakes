@@ -6,6 +6,8 @@ import type { Tool, HackathonTrack } from './types.js';
 
 export const HACKATHON_NAME = 'Agentics Foundation TV5 Hackathon';
 export const HACKATHON_TAGLINE = 'Building the Future of Agentic AI';
+export const HACKATHON_SPONSOR = 'Google Cloud';
+export const HACKATHON_DESCRIPTION = 'Every night, millions spend up to 45 minutes deciding what to watch — billions of hours lost every day. Not from lack of content, but from fragmentation. Join us to build the future of agentic AI systems.';
 export const DISCORD_URL = 'https://discord.agentics.org';
 export const WEBSITE_URL = 'https://agentics.org/hackathon';
 export const GITHUB_URL = 'https://github.com/agenticsorg/hackathon-tv5';

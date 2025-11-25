@@ -6,6 +6,8 @@ import chalk from 'chalk';
 import {
   HACKATHON_NAME,
   HACKATHON_TAGLINE,
+  HACKATHON_SPONSOR,
+  HACKATHON_DESCRIPTION,
   TRACKS,
   DISCORD_URL,
   WEBSITE_URL,
@@ -14,7 +16,46 @@ import {
 } from '../constants.js';
 import { logger } from '../utils/index.js';
 
-export async function infoCommand(): Promise<void> {
+interface InfoOptions {
+  json?: boolean;
+  quiet?: boolean;
+}
+
+export async function infoCommand(options: InfoOptions = {}): Promise<void> {
+  // JSON output
+  if (options.json) {
+    console.log(JSON.stringify({
+      success: true,
+      hackathon: {
+        name: HACKATHON_NAME,
+        tagline: HACKATHON_TAGLINE,
+        sponsor: HACKATHON_SPONSOR,
+        description: HACKATHON_DESCRIPTION
+      },
+      tracks: Object.entries(TRACKS).map(([id, { name, description }]) => ({
+        id,
+        name,
+        description
+      })),
+      technologies: [
+        'Google Gemini 2.5 Pro (1M token context)',
+        'Google Agent Development Kit (ADK)',
+        'Vertex AI & Google Cloud Platform',
+        'Claude Code & Claude Flow',
+        'Multi-agent orchestration systems'
+      ],
+      resources: {
+        website: WEBSITE_URL,
+        discord: DISCORD_URL,
+        github: GITHUB_URL,
+        adkDocs: 'https://google.github.io/adk-docs/',
+        vertexAiDocs: 'https://cloud.google.com/vertex-ai/docs',
+        claudeDocs: 'https://docs.anthropic.com'
+      }
+    }));
+    return;
+  }
+
   logger.banner(BANNER);
   logger.newline();
 
@@ -66,9 +107,9 @@ export async function infoCommand(): Promise<void> {
   // Quick start
   logger.box(
     `${chalk.bold('1.')} Initialize your project:\n` +
-    `   ${chalk.cyan('npx @agenticsorg/hackathon init')}\n\n` +
+    `   ${chalk.cyan('npx agentics-hackathon init')}\n\n` +
     `${chalk.bold('2.')} Install recommended tools:\n` +
-    `   ${chalk.cyan('hackathon tools --install claudeFlow geminiCli adk')}\n\n` +
+    `   ${chalk.cyan('npx agentics-hackathon tools --install claudeFlow geminiCli adk')}\n\n` +
     `${chalk.bold('3.')} Join the community:\n` +
     `   ${chalk.cyan(DISCORD_URL)}\n\n` +
     `${chalk.bold('4.')} Start building!`,

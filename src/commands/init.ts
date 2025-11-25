@@ -31,18 +31,30 @@ interface InitOptions {
   tools?: string[];
   track?: string;
   team?: string;
+  project?: string;
+  mcp?: boolean;
+  json?: boolean;
+  quiet?: boolean;
 }
 
 export async function initCommand(options: InitOptions): Promise<void> {
-  // Show banner
-  logger.banner(BANNER);
-  console.log(WELCOME_MESSAGE);
-  logger.divider();
+  const isQuiet = options.quiet || options.json;
+
+  // Show banner (unless quiet/json mode)
+  if (!isQuiet) {
+    logger.banner(BANNER);
+    console.log(WELCOME_MESSAGE);
+    logger.divider();
+  }
 
   // Check if already initialized
   if (configExists() && !options.force) {
     const config = loadConfig();
     if (config?.initialized) {
+      if (options.json) {
+        console.log(JSON.stringify({ success: false, error: 'already_initialized', message: 'Project already initialized. Use --force to reinitialize.' }));
+        process.exit(1);
+      }
       logger.warning('Project already initialized!');
       logger.info('Use --force to reinitialize');
       return;
@@ -50,21 +62,27 @@ export async function initCommand(options: InitOptions): Promise<void> {
   }
 
   // Check prerequisites
-  logger.info('Checking prerequisites...');
+  if (!isQuiet) logger.info('Checking prerequisites...');
   const prereqs = await checkPrerequisites();
 
   if (!prereqs.node || !prereqs.npm) {
+    if (options.json) {
+      console.log(JSON.stringify({ success: false, error: 'missing_prerequisites', message: 'Node.js and npm are required.', prereqs }));
+      process.exit(1);
+    }
     logger.error('Node.js and npm are required. Please install them first.');
     logger.link('Download Node.js', 'https://nodejs.org');
     return;
   }
 
-  logger.success('Prerequisites check passed');
-  logger.newline();
+  if (!isQuiet) {
+    logger.success('Prerequisites check passed');
+    logger.newline();
+  }
 
   let config: HackathonConfig;
 
-  if (options.yes) {
+  if (options.yes || options.json) {
     // Non-interactive mode with defaults
     config = await runNonInteractive(options);
   } else {
@@ -73,13 +91,22 @@ export async function initCommand(options: InitOptions): Promise<void> {
   }
 
   // Save configuration
-  const spinner = ora('Saving configuration...').start();
-  config.initialized = true;
-  saveConfig(config);
-  spinner.succeed('Configuration saved');
+  if (!isQuiet) {
+    const spinner = ora('Saving configuration...').start();
+    config.initialized = true;
+    saveConfig(config);
+    spinner.succeed('Configuration saved');
+  } else {
+    config.initialized = true;
+    saveConfig(config);
+  }
 
-  // Show summary
-  showSummary(config);
+  // Output result
+  if (options.json) {
+    console.log(JSON.stringify({ success: true, config }));
+  } else {
+    showSummary(config);
+  }
 }
 
 async function runInteractive(options: InitOptions): Promise<HackathonConfig> {
@@ -229,7 +256,8 @@ async function runInteractive(options: InitOptions): Promise<HackathonConfig> {
 }
 
 async function runNonInteractive(options: InitOptions): Promise<HackathonConfig> {
-  const projectName = process.cwd().split('/').pop() || 'hackathon-project';
+  const projectName = options.project || process.cwd().split('/').pop() || 'hackathon-project';
+  const isQuiet = options.quiet || options.json;
 
   const tools: ToolSelection = {
     // AI Assistants
@@ -256,8 +284,8 @@ async function runNonInteractive(options: InitOptions): Promise<HackathonConfig>
     openaiAgents: options.tools?.includes('openaiAgents') || false
   };
 
-  // Install selected tools
-  if (options.tools && options.tools.length > 0) {
+  // Install selected tools (skip in quiet mode unless explicitly requested)
+  if (options.tools && options.tools.length > 0 && !isQuiet) {
     for (const toolName of options.tools) {
       const tool = AVAILABLE_TOOLS.find(t => t.name === toolName);
       if (tool) {
@@ -271,7 +299,7 @@ async function runNonInteractive(options: InitOptions): Promise<HackathonConfig>
     teamName: options.team,
     track: options.track as HackathonTrack | undefined,
     tools,
-    mcpEnabled: false,
+    mcpEnabled: options.mcp || false,
     discordLinked: false,
     initialized: true,
     createdAt: new Date().toISOString()

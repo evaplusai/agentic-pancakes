@@ -2,7 +2,10 @@
  * Init command - Interactive setup wizard for hackathon projects
  */
 
-import { prompt } from 'enquirer';
+import Enquirer from 'enquirer';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const enquirerPrompt = (Enquirer as any).prompt as (options: object) => Promise<any>;
+const prompt = <T>(options: object): Promise<T> => enquirerPrompt(options);
 import chalk from 'chalk';
 import ora from 'ora';
 import path from 'path';

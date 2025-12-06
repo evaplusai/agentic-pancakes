@@ -11,6 +11,11 @@ import {
   UniversalEmotionalState,
   Constraints
 } from '../models/index.js';
+import {
+  ALL_MOCK_CONTENT,
+  getContentByMoodTone,
+  MockContent
+} from '../data/mock-content.js';
 
 /**
  * Content candidate from search
@@ -155,11 +160,11 @@ export class CatalogAgent {
 
   /**
    * Perform vector search
-   * MVP: Returns mock data
+   * MVP: Returns mock data based on emotional state
    * Phase 2: Integrate with AgentDB HNSW search
    */
   private async vectorSearch(
-    _queryVector: Float32Array,
+    queryVector: Float32Array,
     options: SearchOptions
   ): Promise<ContentCandidate[]> {
     try {
@@ -178,172 +183,49 @@ export class CatalogAgent {
       //   utilityScore: 0
       // }));
 
-      // MVP: Return mock candidates
-      const mockCandidates: ContentCandidate[] = [
-        {
-          metadata: {
-            contentId: 'tv5-001',
-            title: 'Les Intouchables',
-            year: 2011,
-            runtime: 112,
-            language: 'fr',
-            genres: ['Comedy', 'Drama'],
-            overview: 'A heartwarming story of an unlikely friendship between a wealthy quadriplegic and his caretaker.',
-            tv5Id: 'tv5-001',
-            tv5Deeplink: 'https://www.tv5monde.com/watch/les-intouchables'
-          },
-          vectorSimilarity: 0.85,
-          matchScore: 0,
-          utilityScore: 0
-        },
-        {
-          metadata: {
-            contentId: 'tv5-002',
-            title: 'Amélie',
-            year: 2001,
-            runtime: 122,
-            language: 'fr',
-            genres: ['Comedy', 'Romance'],
-            overview: 'A whimsical tale of a young woman who decides to help those around her while struggling with her own isolation.',
-            tv5Id: 'tv5-002',
-            tv5Deeplink: 'https://www.tv5monde.com/watch/amelie'
-          },
-          vectorSimilarity: 0.82,
-          matchScore: 0,
-          utilityScore: 0
-        },
-        {
-          metadata: {
-            contentId: 'tv5-003',
-            title: 'La Haine',
-            year: 1995,
-            runtime: 98,
-            language: 'fr',
-            genres: ['Drama', 'Crime'],
-            overview: 'A powerful portrayal of life in the Parisian suburbs following a riot.',
-            tv5Id: 'tv5-003',
-            tv5Deeplink: 'https://www.tv5monde.com/watch/la-haine'
-          },
-          vectorSimilarity: 0.78,
-          matchScore: 0,
-          utilityScore: 0
-        },
-        {
-          metadata: {
-            contentId: 'tv5-004',
-            title: 'Le Fabuleux Destin d\'Amélie Poulain',
-            year: 2001,
-            runtime: 122,
-            language: 'fr',
-            genres: ['Romance', 'Comedy'],
-            overview: 'Amélie is an innocent and naive girl in Paris with her own sense of justice.',
-            tv5Id: 'tv5-004',
-            tv5Deeplink: 'https://www.tv5monde.com/watch/amelie-poulain'
-          },
-          vectorSimilarity: 0.76,
-          matchScore: 0,
-          utilityScore: 0
-        },
-        {
-          metadata: {
-            contentId: 'tv5-005',
-            title: 'La Vie en Rose',
-            year: 2007,
-            runtime: 140,
-            language: 'fr',
-            genres: ['Biography', 'Drama', 'Music'],
-            overview: 'Biopic of the iconic French singer Édith Piaf.',
-            tv5Id: 'tv5-005',
-            tv5Deeplink: 'https://www.tv5monde.com/watch/la-vie-en-rose'
-          },
-          vectorSimilarity: 0.74,
-          matchScore: 0,
-          utilityScore: 0
-        },
-        {
-          metadata: {
-            contentId: 'tv5-006',
-            title: 'Bienvenue chez les Ch\'tis',
-            year: 2008,
-            runtime: 106,
-            language: 'fr',
-            genres: ['Comedy'],
-            overview: 'A French postal worker is transferred to northern France, where he discovers the local culture.',
-            tv5Id: 'tv5-006',
-            tv5Deeplink: 'https://www.tv5monde.com/watch/bienvenue-chtis'
-          },
-          vectorSimilarity: 0.72,
-          matchScore: 0,
-          utilityScore: 0
-        },
-        {
-          metadata: {
-            contentId: 'tv5-007',
-            title: 'Le Petit Prince',
-            year: 2015,
-            runtime: 108,
-            language: 'fr',
-            genres: ['Animation', 'Fantasy', 'Family'],
-            overview: 'A little girl lives in a very grown-up world with her mother, who tries to prepare her for it.',
-            tv5Id: 'tv5-007',
-            tv5Deeplink: 'https://www.tv5monde.com/watch/le-petit-prince'
-          },
-          vectorSimilarity: 0.70,
-          matchScore: 0,
-          utilityScore: 0
-        },
-        {
-          metadata: {
-            contentId: 'tv5-008',
-            title: 'Les Choristes',
-            year: 2004,
-            runtime: 97,
-            language: 'fr',
-            genres: ['Drama', 'Music'],
-            overview: 'A music teacher inspires his students at a boarding school for troubled boys.',
-            tv5Id: 'tv5-008',
-            tv5Deeplink: 'https://www.tv5monde.com/watch/les-choristes'
-          },
-          vectorSimilarity: 0.68,
-          matchScore: 0,
-          utilityScore: 0
-        },
-        {
-          metadata: {
-            contentId: 'tv5-009',
-            title: 'Séraphine',
-            year: 2008,
-            runtime: 125,
-            language: 'fr',
-            genres: ['Biography', 'Drama'],
-            overview: 'The story of Séraphine Louis, a simple maid who became a celebrated painter.',
-            tv5Id: 'tv5-009',
-            tv5Deeplink: 'https://www.tv5monde.com/watch/seraphine'
-          },
-          vectorSimilarity: 0.66,
-          matchScore: 0,
-          utilityScore: 0
-        },
-        {
-          metadata: {
-            contentId: 'tv5-010',
-            title: 'Ne le dis à personne',
-            year: 2006,
-            runtime: 131,
-            language: 'fr',
-            genres: ['Crime', 'Drama', 'Mystery', 'Thriller'],
-            overview: 'A doctor receives an email eight years after his wife\'s murder, suggesting she may be alive.',
-            tv5Id: 'tv5-010',
-            tv5Deeplink: 'https://www.tv5monde.com/watch/ne-le-dis-personne'
-          },
-          vectorSimilarity: 0.64,
-          matchScore: 0,
-          utilityScore: 0
-        }
-      ];
+      // MVP: Use mock content database
+      // Derive mood and tone from query vector emotional dimensions
+      const energy = queryVector[0];
+      const valence = queryVector[1] * 2 - 1; // Convert back to -1..1
+
+      // Map emotional state to mood/tone
+      const mood: 'unwind' | 'engage' = energy < 0.5 ? 'unwind' : 'engage';
+      let tone: 'laugh' | 'feel' | 'thrill' | 'think';
+
+      if (mood === 'unwind') {
+        tone = valence > 0.5 ? 'laugh' : 'feel';
+      } else {
+        tone = valence > 0 ? 'thrill' : 'think';
+      }
+
+      console.log(`[Catalog] Mood: ${mood}, Tone: ${tone}, Energy: ${energy.toFixed(2)}, Valence: ${valence.toFixed(2)}`);
+
+      // Get content matching mood/tone
+      const matchedContent = getContentByMoodTone(mood, tone, {
+        includeTrending: true,
+        limit: 20
+      });
+
+      // Convert to ContentCandidate format with calculated similarities
+      const mockCandidates: ContentCandidate[] = matchedContent.map((content, index) => {
+        // Calculate vector similarity based on emotional match
+        const energyDiff = Math.abs(content.energy - energy);
+        const valenceDiff = Math.abs(content.valence - valence);
+        const similarity = 1 - (energyDiff * 0.3 + valenceDiff * 0.3) - (index * 0.02);
+
+        return this.convertToCandidate(content, Math.max(0.5, similarity));
+      });
+
+      // Also include some content from other categories for variety
+      const otherContent = ALL_MOCK_CONTENT
+        .filter(c => c.mood !== mood || c.tone !== tone)
+        .slice(0, 5)
+        .map(content => this.convertToCandidate(content, 0.4 + Math.random() * 0.2));
+
+      const allCandidates = [...mockCandidates, ...otherContent];
 
       // Apply filters
-      let filtered = mockCandidates;
+      let filtered = allCandidates;
 
       if (options.filters?.runtime?.max) {
         filtered = filtered.filter(c =>
@@ -418,5 +300,29 @@ export class CatalogAgent {
       sum += vector[i] * vector[i];
     }
     return Math.sqrt(sum);
+  }
+
+  /**
+   * Convert MockContent to ContentCandidate
+   */
+  private convertToCandidate(content: MockContent, similarity: number): ContentCandidate {
+    return {
+      metadata: {
+        contentId: content.id,
+        title: content.title,
+        year: content.year,
+        runtime: content.runtime,
+        language: content.language,
+        genres: content.genres,
+        overview: content.overview,
+        posterPath: content.posterUrl ?? undefined,
+        backdropPath: content.backdropUrl ?? undefined,
+        tv5Id: content.tv5Id,
+        tv5Deeplink: content.tv5Deeplink
+      },
+      vectorSimilarity: similarity,
+      matchScore: 0,
+      utilityScore: 0
+    };
   }
 }

@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aura - Your Content Companion</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #16213e 100%);
+            color: #fff;
+            position: relative;
+        }
+
+        /* Ambient background stars */
+        .stars {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .star {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: white;
+            border-radius: 50%;
+            opacity: 0;
+            animation: twinkle 3s infinite;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 0.8; }
+        }
+
+        /* Main container */
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1;
+        }
+
+        /* Orb container */
+        .orb-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            height: 400px;
+            z-index: 2;
+        }
+
+        #orbCanvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Chat interface */
+        .chat-interface {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            max-height: 60%;
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            pointer-events: auto;
+        }
+
+        .messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .messages::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+
+        .messages::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 16px 20px;
+            border-radius: 20px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            animation: fadeInUp 0.5s ease;
+            pointer-events: auto;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.ai {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: rgba(100, 100, 255, 0.2);
+            border: 1px solid rgba(100, 100, 255, 0.3);
+        }
+
+        /* Quick response chips */
+        .quick-chips {
+            display: flex;
+            gap: 10px;
+            padding: 0 20px 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            pointer-events: auto;
+        }
+
+        .chip {
+            padding: 12px 20px;
+            border-radius: 25px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            pointer-events: auto;
+        }
+
+        .chip:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 255, 255, 0.1);
+        }
+
+        .chip:active {
+            transform: translateY(0);
+        }
+
+        /* Input controls */
+        .input-controls {
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            pointer-events: auto;
+        }
+
+        .mic-button {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(20px);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mic-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+
+        .mic-button.active {
+            background: rgba(255, 50, 100, 0.3);
+            border-color: rgba(255, 50, 100, 0.6);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .mic-icon {
+            width: 30px;
+            height: 30px;
+            fill: white;
+        }
+
+        /* Content cards */
+        .content-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            overflow: hidden;
+            backdrop-filter: blur(20px);
+            margin-top: 15px;
+            animation: fadeInUp 0.6s ease;
+        }
+
+        .card-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .card-content {
+            padding: 20px;
+        }
+
+        .card-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .card-match {
+            color: #4ade80;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .card-genres {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 15px;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .card-button {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .card-button.primary {
+            background: rgba(100, 100, 255, 0.3);
+            color: white;
+            border: 1px solid rgba(100, 100, 255, 0.5);
+        }
+
+        .card-button.secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .card-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Waveform visualization */
+        .waveform {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 500px;
+            height: 500px;
+            z-index: 1;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .waveform.active {
+            opacity: 1;
+        }
+
+        /* Audio toggle */
+        .audio-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            transition: all 0.3s ease;
+        }
+
+        .audio-toggle:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .audio-icon {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .orb-container {
+                width: 280px;
+                height: 280px;
+            }
+
+            .message {
+                max-width: 90%;
+                font-size: 14px;
+            }
+
+            .waveform {
+                width: 350px;
+                height: 350px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Ambient stars -->
+    <div class="stars" id="stars"></div>
+
+    <!-- Audio toggle -->
+    <div class="audio-toggle" id="audioToggle" title="Toggle ambient sound">
+        <svg class="audio-icon" viewBox="0 0 24 24">
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+        </svg>
+    </div>
+
+    <div class="container">
+        <!-- Orb visualization -->
+        <div class="orb-container">
+            <canvas id="orbCanvas"></canvas>
+        </div>
+
+        <!-- Waveform for voice input -->
+        <canvas class="waveform" id="waveform"></canvas>
+
+        <!-- Chat interface -->
+        <div class="chat-interface">
+            <div class="messages" id="messages">
+                <!-- Messages will be added here -->
+            </div>
+
+            <div class="quick-chips" id="quickChips">
+                <!-- Quick response chips will be added here -->
+            </div>
+
+            <div class="input-controls">
+                <button class="mic-button" id="micButton">
+                    <svg class="mic-icon" viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                        <path fill="currentColor" d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Orb animation system
+        class AuraOrb {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.resize();
+
+                this.time = 0;
+                this.mood = 'neutral';
+                this.targetMood = 'neutral';
+                this.transitionProgress = 0;
+
+                this.particles = [];
+                this.particleCount = 50;
+
+                this.moodColors = {
+                    neutral: { core: [200, 200, 220], glow: [150, 150, 200] },
+                    unwind: { core: [138, 43, 226], glow: [186, 85, 211] },
+                    engage: { core: [255, 165, 0], glow: [255, 215, 0] },
+                    laugh: { core: [255, 105, 180], glow: [255, 160, 122] },
+                    feel: { core: [30, 144, 255], glow: [64, 224, 208] },
+                    thrill: { core: [220, 20, 60], glow: [255, 69, 0] },
+                    think: { core: [46, 204, 113], glow: [0, 206, 209] }
+                };
+
+                this.initParticles();
+                window.addEventListener('resize', () => this.resize());
+            }
+
+            resize() {
+                const size = Math.min(window.innerWidth, window.innerHeight) * 0.8;
+                this.canvas.width = size;
+                this.canvas.height = size;
+                this.centerX = size / 2;
+                this.centerY = size / 2;
+                this.baseRadius = size * 0.25;
+            }
+
+            initParticles() {
+                this.particles = [];
+                for (let i = 0; i < this.particleCount; i++) {
+                    this.particles.push({
+                        angle: Math.random() * Math.PI * 2,
+                        distance: this.baseRadius * (1.5 + Math.random() * 0.5),
+                        speed: 0.001 + Math.random() * 0.002,
+                        size: 1 + Math.random() * 2,
+                        opacity: Math.random()
+                    });
+                }
+            }
+
+            setMood(mood) {
+                if (this.moodColors[mood]) {
+                    this.targetMood = mood;
+                    this.transitionProgress = 0;
+                }
+            }
+
+            lerpColor(color1, color2, t) {
+                return [
+                    color1[0] + (color2[0] - color1[0]) * t,
+                    color1[1] + (color2[1] - color1[1]) * t,
+                    color1[2] + (color2[2] - color1[2]) * t
+                ];
+            }
+
+            draw() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.time += 0.01;
+
+                // Smooth mood transition
+                if (this.mood !== this.targetMood) {
+                    this.transitionProgress += 0.02;
+                    if (this.transitionProgress >= 1) {
+                        this.mood = this.targetMood;
+                        this.transitionProgress = 0;
+                    }
+                }
+
+                const currentColors = this.moodColors[this.mood];
+                const targetColors = this.moodColors[this.targetMood];
+                const t = this.transitionProgress;
+
+                const coreColor = this.lerpColor(currentColors.core, targetColors.core, t);
+                const glowColor = this.lerpColor(currentColors.glow, targetColors.glow, t);
+
+                // Breathing animation
+                const breathe = Math.sin(this.time * 0.5) * 0.1 + 1;
+                const radius = this.baseRadius * breathe;
+
+                // Outer glow layers
+                for (let i = 5; i > 0; i--) {
+                    const glowRadius = radius * (1 + i * 0.15);
+                    const gradient = this.ctx.createRadialGradient(
+                        this.centerX, this.centerY, radius,
+                        this.centerX, this.centerY, glowRadius
+                    );
+
+                    gradient.addColorStop(0, `rgba(${glowColor[0]}, ${glowColor[1]}, ${glowColor[2]}, ${0.3 / i})`);
+                    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+                    this.ctx.fillStyle = gradient;
+                    this.ctx.beginPath();
+                    this.ctx.arc(this.centerX, this.centerY, glowRadius, 0, Math.PI * 2);
+                    this.ctx.fill();
+                }
+
+                // Core orb with organic deformation
+                this.ctx.beginPath();
+                for (let angle = 0; angle < Math.PI * 2; angle += 0.1) {
+                    const deform = Math.sin(angle * 3 + this.time) * 0.05 +
+                                   Math.sin(angle * 5 - this.time * 2) * 0.03;
+                    const r = radius * (1 + deform);
+                    const x = this.centerX + Math.cos(angle) * r;
+                    const y = this.centerY + Math.sin(angle) * r;
+
+                    if (angle === 0) {
+                        this.ctx.moveTo(x, y);
+                    } else {
+                        this.ctx.lineTo(x, y);
+                    }
+                }
+                this.ctx.closePath();
+
+                const coreGradient = this.ctx.createRadialGradient(
+                    this.centerX, this.centerY, 0,
+                    this.centerX, this.centerY, radius
+                );
+                coreGradient.addColorStop(0, `rgba(${coreColor[0]}, ${coreColor[1]}, ${coreColor[2]}, 1)`);
+                coreGradient.addColorStop(0.6, `rgba(${coreColor[0]}, ${coreColor[1]}, ${coreColor[2]}, 0.6)`);
+                coreGradient.addColorStop(1, `rgba(${glowColor[0]}, ${glowColor[1]}, ${glowColor[2]}, 0.2)`);
+
+                this.ctx.fillStyle = coreGradient;
+                this.ctx.fill();
+
+                // Particles
+                this.particles.forEach(particle => {
+                    particle.angle += particle.speed;
+                    particle.opacity = 0.3 + Math.sin(this.time * 2 + particle.angle * 5) * 0.3;
+
+                    const x = this.centerX + Math.cos(particle.angle) * particle.distance;
+                    const y = this.centerY + Math.sin(particle.angle) * particle.distance;
+
+                    this.ctx.fillStyle = `rgba(${glowColor[0]}, ${glowColor[1]}, ${glowColor[2]}, ${particle.opacity})`;
+                    this.ctx.beginPath();
+                    this.ctx.arc(x, y, particle.size, 0, Math.PI * 2);
+                    this.ctx.fill();
+                });
+            }
+
+            animate() {
+                this.draw();
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+
+        // Waveform visualization for voice input
+        class VoiceWaveform {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.resize();
+                this.active = false;
+                this.bars = 32;
+                this.values = Array(this.bars).fill(0);
+
+                window.addEventListener('resize', () => this.resize());
+            }
+
+            resize() {
+                const size = Math.min(window.innerWidth, window.innerHeight);
+                this.canvas.width = size;
+                this.canvas.height = size;
+                this.centerX = size / 2;
+                this.centerY = size / 2;
+                this.radius = size * 0.3;
+            }
+
+            setActive(active) {
+                this.active = active;
+                this.canvas.classList.toggle('active', active);
+            }
+
+            update(audioData) {
+                if (audioData && audioData.length > 0) {
+                    for (let i = 0; i < this.bars; i++) {
+                        const index = Math.floor(i * audioData.length / this.bars);
+                        this.values[i] = audioData[index] / 255;
+                    }
+                } else {
+                    // Simulate waveform when no audio data
+                    for (let i = 0; i < this.bars; i++) {
+                        this.values[i] = Math.random() * 0.5 + 0.2;
+                    }
+                }
+            }
+
+            draw() {
+                if (!this.active) return;
+
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                for (let i = 0; i < this.bars; i++) {
+                    const angle = (i / this.bars) * Math.PI * 2 - Math.PI / 2;
+                    const value = this.values[i];
+                    const barHeight = value * 80;
+
+                    const x1 = this.centerX + Math.cos(angle) * this.radius;
+                    const y1 = this.centerY + Math.sin(angle) * this.radius;
+                    const x2 = this.centerX + Math.cos(angle) * (this.radius + barHeight);
+                    const y2 = this.centerY + Math.sin(angle) * (this.radius + barHeight);
+
+                    const gradient = this.ctx.createLinearGradient(x1, y1, x2, y2);
+                    gradient.addColorStop(0, 'rgba(255, 100, 150, 0.3)');
+                    gradient.addColorStop(1, 'rgba(255, 100, 150, 0.8)');
+
+                    this.ctx.strokeStyle = gradient;
+                    this.ctx.lineWidth = 3;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x1, y1);
+                    this.ctx.lineTo(x2, y2);
+                    this.ctx.stroke();
+                }
+            }
+
+            animate() {
+                this.draw();
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+
+        // Ambient audio system
+        class AmbientAudio {
+            constructor() {
+                this.audioContext = null;
+                this.oscillators = [];
+                this.gainNode = null;
+                this.enabled = false;
+            }
+
+            init() {
+                if (!this.audioContext) {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    this.gainNode = this.audioContext.createGain();
+                    this.gainNode.connect(this.audioContext.destination);
+                    this.gainNode.gain.value = 0.1;
+                }
+            }
+
+            toggle() {
+                this.enabled = !this.enabled;
+                if (this.enabled) {
+                    this.init();
+                    this.play();
+                } else {
+                    this.stop();
+                }
+                return this.enabled;
+            }
+
+            play() {
+                this.stop();
+
+                const frequencies = [174, 285, 396, 432];
+
+                frequencies.forEach((freq, i) => {
+                    const osc = this.audioContext.createOscillator();
+                    const gain = this.audioContext.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    gain.gain.value = 0.05 / (i + 1);
+
+                    osc.connect(gain);
+                    gain.connect(this.gainNode);
+                    osc.start();
+
+                    this.oscillators.push(osc);
+                });
+            }
+
+            stop() {
+                this.oscillators.forEach(osc => {
+                    try {
+                        osc.stop();
+                    } catch (e) {
+                        // Already stopped
+                    }
+                });
+                this.oscillators = [];
+            }
+
+            setMood(mood) {
+                if (!this.enabled) return;
+
+                const moodFrequencies = {
+                    neutral: [174, 285, 396],
+                    unwind: [136, 204, 272],
+                    engage: [261, 392, 523],
+                    laugh: [329, 493, 659],
+                    feel: [220, 330, 440],
+                    thrill: [349, 523, 698],
+                    think: [246, 369, 493]
+                };
+
+                const frequencies = moodFrequencies[mood] || moodFrequencies.neutral;
+
+                this.oscillators.forEach((osc, i) => {
+                    if (frequencies[i]) {
+                        osc.frequency.linearRampToValueAtTime(
+                            frequencies[i],
+                            this.audioContext.currentTime + 2
+                        );
+                    }
+                });
+            }
+        }
+
+        // Chat system
+        class ChatSystem {
+            constructor() {
+                this.messagesContainer = document.getElementById('messages');
+                this.quickChipsContainer = document.getElementById('quickChips');
+                this.micButton = document.getElementById('micButton');
+                this.recognition = null;
+                this.isListening = false;
+
+                this.setupSpeechRecognition();
+                this.setupEventListeners();
+            }
+
+            setupSpeechRecognition() {
+                if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                    this.recognition = new SpeechRecognition();
+                    this.recognition.continuous = false;
+                    this.recognition.interimResults = false;
+                    this.recognition.lang = 'en-US';
+
+                    this.recognition.onresult = (event) => {
+                        const transcript = event.results[0][0].transcript;
+                        this.handleUserMessage(transcript);
+                    };
+
+                    this.recognition.onend = () => {
+                        this.stopListening();
+                    };
+
+                    this.recognition.onerror = (event) => {
+                        console.error('Speech recognition error:', event.error);
+                        this.stopListening();
+                    };
+                }
+            }
+
+            setupEventListeners() {
+                this.micButton.addEventListener('click', () => {
+                    if (this.isListening) {
+                        this.stopListening();
+                    } else {
+                        this.startListening();
+                    }
+                });
+            }
+
+            startListening() {
+                if (this.recognition) {
+                    this.isListening = true;
+                    this.micButton.classList.add('active');
+                    waveform.setActive(true);
+                    this.recognition.start();
+                }
+            }
+
+            stopListening() {
+                if (this.recognition) {
+                    this.isListening = false;
+                    this.micButton.classList.remove('active');
+                    waveform.setActive(false);
+                    try {
+                        this.recognition.stop();
+                    } catch (e) {
+                        // Already stopped
+                    }
+                }
+            }
+
+            addMessage(text, isUser = false, typewriter = false) {
+                const message = document.createElement('div');
+                message.className = `message ${isUser ? 'user' : 'ai'}`;
+                this.messagesContainer.appendChild(message);
+
+                if (typewriter && !isUser) {
+                    this.typewriterEffect(message, text);
+                } else {
+                    message.textContent = text;
+                }
+
+                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+            }
+
+            typewriterEffect(element, text, speed = 30) {
+                let i = 0;
+                const interval = setInterval(() => {
+                    if (i < text.length) {
+                        element.textContent += text.charAt(i);
+                        i++;
+                        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                    } else {
+                        clearInterval(interval);
+                    }
+                }, speed);
+            }
+
+            setQuickChips(chips) {
+                this.quickChipsContainer.innerHTML = '';
+                chips.forEach(chip => {
+                    const chipEl = document.createElement('div');
+                    chipEl.className = 'chip';
+                    chipEl.textContent = chip.text;
+                    chipEl.addEventListener('click', () => chip.action());
+                    this.quickChipsContainer.appendChild(chipEl);
+                });
+            }
+
+            handleUserMessage(text) {
+                this.addMessage(text, true);
+                this.quickChipsContainer.innerHTML = '';
+
+                setTimeout(() => {
+                    this.processMessage(text);
+                }, 500);
+            }
+
+            processMessage(text) {
+                const lowerText = text.toLowerCase();
+
+                // Detect mood from message
+                if (lowerText.includes('unwind') || lowerText.includes('relax') || lowerText.includes('calm')) {
+                    orb.setMood('unwind');
+                    ambientAudio.setMood('unwind');
+                    this.addMessage("Perfect. Let me find something soothing for you...", false, true);
+                    setTimeout(() => this.showContent('unwind'), 2000);
+                } else if (lowerText.includes('engage') || lowerText.includes('energize') || lowerText.includes('excited')) {
+                    orb.setMood('engage');
+                    ambientAudio.setMood('engage');
+                    this.addMessage("Great energy! Here's something to keep you going...", false, true);
+                    setTimeout(() => this.showContent('engage'), 2000);
+                } else if (lowerText.includes('laugh') || lowerText.includes('funny') || lowerText.includes('comedy')) {
+                    orb.setMood('laugh');
+                    ambientAudio.setMood('laugh');
+                    this.addMessage("Let's bring some joy! Check this out...", false, true);
+                    setTimeout(() => this.showContent('laugh'), 2000);
+                } else if (lowerText.includes('feel') || lowerText.includes('emotional') || lowerText.includes('drama')) {
+                    orb.setMood('feel');
+                    ambientAudio.setMood('feel');
+                    this.addMessage("Something that touches the heart...", false, true);
+                    setTimeout(() => this.showContent('feel'), 2000);
+                } else if (lowerText.includes('thrill') || lowerText.includes('action') || lowerText.includes('intense')) {
+                    orb.setMood('thrill');
+                    ambientAudio.setMood('thrill');
+                    this.addMessage("Ready for some adrenaline? Here we go...", false, true);
+                    setTimeout(() => this.showContent('thrill'), 2000);
+                } else if (lowerText.includes('think') || lowerText.includes('documentary') || lowerText.includes('learn')) {
+                    orb.setMood('think');
+                    ambientAudio.setMood('think');
+                    this.addMessage("Expanding the mind... I have just the thing...", false, true);
+                    setTimeout(() => this.showContent('think'), 2000);
+                } else {
+                    // Default response
+                    this.addMessage("Interesting! Let me think about that...", false, true);
+                    setTimeout(() => {
+                        orb.setMood('neutral');
+                        this.showDefaultChips();
+                    }, 1500);
+                }
+            }
+
+            showContent(mood) {
+                const contentData = {
+                    unwind: {
+                        title: "Midnight in Paris",
+                        match: "94% match",
+                        genres: "Romance • Fantasy • Drama",
+                        image: "https://via.placeholder.com/400x200/8B5CF6/FFFFFF?text=Midnight+in+Paris"
+                    },
+                    engage: {
+                        title: "Intouchables",
+                        match: "91% match",
+                        genres: "Comedy • Drama • Friendship",
+                        image: "https://via.placeholder.com/400x200/F59E0B/FFFFFF?text=Intouchables"
+                    },
+                    laugh: {
+                        title: "Amélie",
+                        match: "96% match",
+                        genres: "Romance • Comedy • Whimsical",
+                        image: "https://via.placeholder.com/400x200/EC4899/FFFFFF?text=Amelie"
+                    },
+                    feel: {
+                        title: "Blue Is the Warmest Color",
+                        match: "88% match",
+                        genres: "Drama • Romance • Coming-of-age",
+                        image: "https://via.placeholder.com/400x200/3B82F6/FFFFFF?text=Blue+Is+the+Warmest+Color"
+                    },
+                    thrill: {
+                        title: "La Haine",
+                        match: "92% match",
+                        genres: "Drama • Crime • Social",
+                        image: "https://via.placeholder.com/400x200/DC2626/FFFFFF?text=La+Haine"
+                    },
+                    think: {
+                        title: "Faces Places",
+                        match: "89% match",
+                        genres: "Documentary • Art • Travel",
+                        image: "https://via.placeholder.com/400x200/10B981/FFFFFF?text=Faces+Places"
+                    }
+                };
+
+                const content = contentData[mood] || contentData.unwind;
+
+                const card = document.createElement('div');
+                card.className = 'message ai';
+                card.innerHTML = `
+                    <div class="content-card">
+                        <img class="card-image" src="${content.image}" alt="${content.title}">
+                        <div class="card-content">
+                            <div class="card-title">${content.title}</div>
+                            <div class="card-match">${content.match}</div>
+                            <div class="card-genres">${content.genres}</div>
+                            <div class="card-actions">
+                                <button class="card-button primary">Watch Now</button>
+                                <button class="card-button secondary">Save</button>
+                                <button class="card-button secondary">Another</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                this.messagesContainer.appendChild(card);
+                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+
+                setTimeout(() => this.showDefaultChips(), 1000);
+            }
+
+            showDefaultChips() {
+                this.setQuickChips([
+                    { text: '🌙 Unwind', action: () => this.handleUserMessage('I want to unwind') },
+                    { text: '⚡ Engage', action: () => this.handleUserMessage('Something engaging') },
+                    { text: '😂 Laugh', action: () => this.handleUserMessage('Make me laugh') },
+                    { text: '💙 Feel', action: () => this.handleUserMessage('Something emotional') },
+                    { text: '🎲 Surprise me', action: () => this.handleUserMessage('Surprise me') }
+                ]);
+            }
+        }
+
+        // Initialize everything
+        const canvas = document.getElementById('orbCanvas');
+        const orb = new AuraOrb(canvas);
+        orb.animate();
+
+        const waveformCanvas = document.getElementById('waveform');
+        const waveform = new VoiceWaveform(waveformCanvas);
+        waveform.animate();
+
+        // Simulate waveform animation when listening
+        setInterval(() => {
+            if (waveform.active) {
+                waveform.update(null);
+            }
+        }, 100);
+
+        const ambientAudio = new AmbientAudio();
+
+        const chat = new ChatSystem();
+
+        // Welcome message
+        setTimeout(() => {
+            chat.addMessage("Hey there. What are you in the mood for tonight?", false, true);
+            setTimeout(() => {
+                chat.setQuickChips([
+                    { text: '🌙 Unwind', action: () => chat.handleUserMessage('I want to unwind') },
+                    { text: '⚡ Engage', action: () => chat.handleUserMessage('Something engaging') },
+                    { text: '🎲 Surprise me', action: () => chat.handleUserMessage('Surprise me') }
+                ]);
+            }, 1000);
+        }, 500);
+
+        // Audio toggle
+        const audioToggle = document.getElementById('audioToggle');
+        audioToggle.addEventListener('click', () => {
+            const enabled = ambientAudio.toggle();
+            audioToggle.style.background = enabled ? 'rgba(100, 255, 100, 0.2)' : 'rgba(255, 255, 255, 0.1)';
+        });
+
+        // Create ambient stars
+        const starsContainer = document.getElementById('stars');
+        for (let i = 0; i < 100; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            star.style.left = Math.random() * 100 + '%';
+            star.style.top = Math.random() * 100 + '%';
+            star.style.animationDelay = Math.random() * 3 + 's';
+            starsContainer.appendChild(star);
+        }
+    </script>
+</body>
+</html>

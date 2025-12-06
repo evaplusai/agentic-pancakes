@@ -474,6 +474,11 @@ app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, '../../public/index.html'));
 });
 
+// Serve chat.html for /chat path (new conversational UI)
+app.get('/chat', (_req, res) => {
+  res.sendFile(path.join(__dirname, '../../public/chat.html'));
+});
+
 // Start server
 app.listen(PORT, async () => {
   console.log(`\n🚀 What to Watch in 60 Seconds - Demo Server`);

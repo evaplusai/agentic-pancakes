@@ -1,0 +1,8 @@
+{
+  "provider": "gemini",
+  "model": "gemini-2.0-flash-exp",
+  "cacheStrategy": "memory",
+  "maxRetries": 3,
+  "timeout": 30000,
+  "debug": false
+}

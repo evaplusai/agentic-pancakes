@@ -140,6 +140,12 @@ vite.config.ts.timestamp-*
 .DS_Store
 .devcontainer/
 
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+.claude/
+.agentic-qe/
+
 # Claude Flow generated files
 .claude/settings.local.json
 .mcp.json
@@ -166,5 +172,3 @@ coordination/orchestration/*
 claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
-.claude/
-.agentic-qe/

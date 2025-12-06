@@ -327,6 +327,214 @@
             color: #e91e63;
         }
 
+        /* Home Screen Styles */
+        .user-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 16px;
+            margin-bottom: 32px;
+        }
+
+        .user-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #e91e63, #9c27b0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .user-info {
+            flex: 1;
+        }
+
+        .user-name {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .user-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+            color: #888;
+        }
+
+        .search-box {
+            margin-bottom: 32px;
+        }
+
+        .search-input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px 20px;
+            font-size: 16px;
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .search-input::placeholder {
+            color: #666;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #e91e63;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .section {
+            margin-bottom: 48px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .see-all {
+            color: #e91e63;
+            font-size: 14px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .see-all:hover {
+            opacity: 0.8;
+        }
+
+        .carousel {
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            padding-bottom: 12px;
+            scrollbar-width: thin;
+            scrollbar-color: #e91e63 rgba(255, 255, 255, 0.05);
+        }
+
+        .carousel::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .carousel::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .carousel::-webkit-scrollbar-thumb {
+            background: #e91e63;
+            border-radius: 4px;
+        }
+
+        .content-card {
+            flex: 0 0 280px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .content-card:hover {
+            transform: translateY(-4px);
+            border-color: #e91e63;
+            box-shadow: 0 8px 32px rgba(233, 30, 99, 0.3);
+        }
+
+        .content-poster {
+            width: 100%;
+            height: 160px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+            position: relative;
+        }
+
+        .progress-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #e91e63;
+            transition: width 0.3s;
+        }
+
+        .content-info {
+            padding: 16px;
+        }
+
+        .content-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .content-meta {
+            font-size: 13px;
+            color: #888;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .start-quiz-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #e91e63, #9c27b0);
+            border: none;
+            border-radius: 12px;
+            padding: 20px;
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-bottom: 32px;
+        }
+
+        .start-quiz-btn:hover {
+            transform: scale(1.02);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
         @media (max-width: 640px) {
             .choices {
                 grid-template-columns: 1fr;
@@ -348,6 +556,19 @@
             .format-choice {
                 flex-direction: column;
             }
+
+            .content-card {
+                flex: 0 0 200px;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .user-header {
+                flex-direction: column;
+                text-align: center;
+            }
         }
     </style>
 </head>
@@ -356,6 +577,69 @@
         <div class="logo">
             <h1>TV5MONDE</h1>
             <p>What to Watch in 60 Seconds</p>
+        </div>
+
+        <!-- Home Screen with Personalization -->
+        <div id="screen-home" class="screen">
+            <!-- User Profile Header -->
+            <div class="user-header" id="user-header">
+                <div class="user-avatar" id="user-avatar">M</div>
+                <div class="user-info">
+                    <div class="user-name" id="user-name">Loading...</div>
+                    <div class="user-stats">
+                        <span id="watch-count">0 watched</span>
+                        <span>•</span>
+                        <span id="watchlist-count">0 saved</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search Box -->
+            <div class="search-box">
+                <input
+                    type="text"
+                    class="search-input"
+                    id="search-input"
+                    placeholder="Search by mood, genre, or description..."
+                    onkeypress="handleSearchKeypress(event)"
+                />
+            </div>
+
+            <!-- Start Quiz Button -->
+            <button class="start-quiz-btn" onclick="startQuiz()">
+                🎯 Find My Perfect Match (60 seconds)
+            </button>
+
+            <!-- Continue Watching Section -->
+            <div class="section" id="continue-watching-section" style="display: none;">
+                <div class="section-header">
+                    <h3 class="section-title">Continue Watching</h3>
+                </div>
+                <div class="carousel" id="continue-watching-carousel">
+                    <!-- Dynamic content cards -->
+                </div>
+            </div>
+
+            <!-- Personalized Trending Section -->
+            <div class="section" id="trending-section" style="display: none;">
+                <div class="section-header">
+                    <h3 class="section-title">Trending for You</h3>
+                </div>
+                <div class="carousel" id="trending-carousel">
+                    <!-- Dynamic content cards -->
+                </div>
+            </div>
+
+            <!-- Watchlist Section -->
+            <div class="section" id="watchlist-section" style="display: none;">
+                <div class="section-header">
+                    <h3 class="section-title">Your Watchlist</h3>
+                    <span class="see-all" onclick="showAllWatchlist()">See all →</span>
+                </div>
+                <div class="grid" id="watchlist-grid">
+                    <!-- Dynamic content cards -->
+                </div>
+            </div>
         </div>
 
         <!-- Welcome Screen -->
@@ -478,11 +762,13 @@
     </div>
 
     <script>
+        const userId = 'demo-user';
         let preferences = {
             mood: null,
             tone: null,
             format: null
         };
+        let currentScreen = 'home';
 
         const mockResults = {
             'unwind-laugh-movie': {
@@ -570,6 +856,176 @@
         function showScreen(screenId) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(screenId).classList.add('active');
+            currentScreen = screenId;
+        }
+
+        // Initialize home screen on load
+        window.addEventListener('DOMContentLoaded', async () => {
+            await loadUserProfile();
+            await loadContinueWatching();
+            await loadPersonalizedTrending();
+            await loadWatchlist();
+            showScreen('screen-home');
+        });
+
+        // Load user profile
+        async function loadUserProfile() {
+            try {
+                const response = await fetch(`/api/user/${userId}`);
+                if (!response.ok) throw new Error('Failed to load user');
+
+                const user = await response.json();
+                document.getElementById('user-name').textContent = user.displayName || 'Guest';
+                document.getElementById('user-avatar').textContent = getInitials(user.displayName || 'Guest');
+                document.getElementById('watch-count').textContent = `${user.watchStats?.totalWatched || 0} watched`;
+                document.getElementById('watchlist-count').textContent = `${user.watchStats?.watchlistCount || 0} saved`;
+            } catch (error) {
+                console.error('Error loading user profile:', error);
+                // Use defaults if API fails
+                document.getElementById('user-name').textContent = 'Marie';
+                document.getElementById('user-avatar').textContent = 'M';
+            }
+        }
+
+        function getInitials(name) {
+            return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+        }
+
+        // Load continue watching
+        async function loadContinueWatching() {
+            try {
+                const response = await fetch(`/api/user/${userId}/continue-watching`);
+                if (!response.ok) throw new Error('Failed to load continue watching');
+
+                const items = await response.json();
+                if (items.length > 0) {
+                    const carousel = document.getElementById('continue-watching-carousel');
+                    carousel.innerHTML = items.map(item => createContentCard(item, true)).join('');
+                    document.getElementById('continue-watching-section').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading continue watching:', error);
+            }
+        }
+
+        // Load personalized trending
+        async function loadPersonalizedTrending() {
+            try {
+                const response = await fetch(`/api/user/${userId}/trending`);
+                if (!response.ok) throw new Error('Failed to load trending');
+
+                const items = await response.json();
+                if (items.length > 0) {
+                    const carousel = document.getElementById('trending-carousel');
+                    carousel.innerHTML = items.map(item => createContentCard(item, false)).join('');
+                    document.getElementById('trending-section').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading trending:', error);
+            }
+        }
+
+        // Load watchlist
+        async function loadWatchlist() {
+            try {
+                const response = await fetch(`/api/user/${userId}/watchlist/content`);
+                if (!response.ok) throw new Error('Failed to load watchlist');
+
+                const items = await response.json();
+                if (items.length > 0) {
+                    const grid = document.getElementById('watchlist-grid');
+                    grid.innerHTML = items.slice(0, 4).map(item => createContentCard(item, false)).join('');
+                    document.getElementById('watchlist-section').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading watchlist:', error);
+            }
+        }
+
+        // Create content card HTML
+        function createContentCard(item, showProgress = false) {
+            const emoji = getEmojiForGenre(item.genres?.[0] || 'Drama');
+            const progress = showProgress && item.progress ? item.progress : 0;
+
+            return `
+                <div class="content-card" onclick="playContent('${item.id}')">
+                    <div class="content-poster">
+                        ${emoji}
+                        ${showProgress ? `
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progress}%"></div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="content-info">
+                        <div class="content-title">${item.title}</div>
+                        <div class="content-meta">
+                            <span>${item.year || '2024'}</span>
+                            ${showProgress ? `<span>• ${Math.round(progress)}% watched</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getEmojiForGenre(genre) {
+            const emojiMap = {
+                'Comedy': '😄',
+                'Drama': '🎭',
+                'Thriller': '🔥',
+                'Romance': '💝',
+                'Crime': '🔍',
+                'Sci-Fi': '🧩',
+                'Historical': '📚',
+                'Action': '⚡'
+            };
+            return emojiMap[genre] || '🎬';
+        }
+
+        // Handle search
+        async function handleSearchKeypress(event) {
+            if (event.key === 'Enter') {
+                const query = event.target.value.trim();
+                if (query) {
+                    await performSearch(query);
+                }
+            }
+        }
+
+        async function performSearch(query) {
+            try {
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, limit: 10 })
+                });
+
+                if (!response.ok) throw new Error('Search failed');
+
+                const results = await response.json();
+                displaySearchResults(results);
+            } catch (error) {
+                console.error('Search error:', error);
+                alert('Search is currently unavailable. Please try again later.');
+            }
+        }
+
+        function displaySearchResults(results) {
+            // For now, just show an alert with the count
+            // In production, you'd show a search results screen
+            alert(`Found ${results.length} results matching your search!`);
+        }
+
+        function playContent(contentId) {
+            alert(`Playing content: ${contentId}\n\n(In production, this would launch the video player)`);
+        }
+
+        function showAllWatchlist() {
+            alert('Showing full watchlist\n\n(In production, this would navigate to a dedicated watchlist page)');
+        }
+
+        function startQuiz() {
+            showScreen('screen-welcome');
         }
 
         function selectMood(mood) {
@@ -650,7 +1106,7 @@
 
         function restart() {
             preferences = { mood: null, tone: null, format: null };
-            showScreen('screen-welcome');
+            showScreen('screen-home');
         }
 
         async function surpriseMe() {

@@ -6,6 +6,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { getUserService } from '../services/user-service.js';
 import { RuVectorStore } from '../integrations/ruvector.js';
 import { getPersonalizationAgent } from '../agents/personalization.js';
+import { initializeDemoUsers } from '../data/demo-users.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -389,9 +390,39 @@ app.post('/api/user/:userId/personalized', async (req, res): Promise<void> => {
 
 // Get "Continue Watching" for user
 app.get('/api/user/:userId/continue-watching', (req, res) => {
-  const { userId } = req.params;
-  const content = personalizationAgent.getContinueWatching(userId);
-  res.json({ content });
+  try {
+    const { userId } = req.params;
+
+    // Get user profile to access watch history
+    const profile = userService.getUser(userId);
+    if (!profile) {
+      res.json({ content: [] });
+      return;
+    }
+
+    // Get partially watched content
+    const continueWatching = personalizationAgent.getContinueWatching(userId);
+
+    // Map to include progress from watch history
+    const content = continueWatching.map(item => {
+      const watchEntry = profile.watchHistory.find(entry => entry.contentId === item.id);
+
+      return {
+        id: item.id,
+        title: item.title,
+        posterUrl: item.posterUrl || null,
+        progress: watchEntry?.completionRate || 0,
+        genres: item.genres
+      };
+    });
+
+    res.json({ content });
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+      content: []
+    });
+  }
 });
 
 // Get watchlist content
@@ -474,6 +505,15 @@ app.listen(PORT, async () => {
 
   // Try to initialize MCP client
   await initializeMCPClient();
+
+  // Initialize demo user data
+  console.log(`\n⏳ Initializing demo user...`);
+  try {
+    initializeDemoUsers(userService);
+    console.log(`✅ Demo user initialized successfully`);
+  } catch (error) {
+    console.warn('⚠️  Demo user initialization failed:', error);
+  }
 
   console.log(`\n✨ Open http://localhost:${PORT} to try it out!\n`);
 });

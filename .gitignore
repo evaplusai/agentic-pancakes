@@ -150,6 +150,19 @@ hive-mind-prompt-*.txt
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
 
+
+# Removed Windows wrapper files per user request
+hive-mind-prompt-*.txt
+
+# Universal Content Discovery specific
+data/agentdb/*
+!data/agentdb/.gitkeep
+data/metadata.db
+data/metadata.db-shm
+data/metadata.db-wal
+data/cache/*
+!data/cache/.gitkeep
+
 # Claude Flow generated files
 .claude/settings.local.json
 .mcp.json
@@ -176,12 +189,3 @@ coordination/orchestration/*
 claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
-
-# Universal Content Discovery specific
-data/agentdb/*
-!data/agentdb/.gitkeep
-data/metadata.db
-data/metadata.db-shm
-data/metadata.db-wal
-data/cache/*
-!data/cache/.gitkeep

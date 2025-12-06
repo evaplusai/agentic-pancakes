@@ -3,9 +3,17 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { getUserService } from '../services/user-service.js';
+import { RuVectorStore } from '../integrations/ruvector.js';
+import { getPersonalizationAgent } from '../agents/personalization.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Services
+const userService = getUserService();
+let vectorStore: RuVectorStore | null = null;
+const personalizationAgent = getPersonalizationAgent();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -201,12 +209,233 @@ app.post('/api/recommend', async (req, res): Promise<void> => {
 });
 
 // Health check endpoint
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', async (_req, res) => {
   res.json({
     status: 'ok',
     mcpConnected: mcpClient !== null,
+    vectorStoreReady: vectorStore !== null,
     timestamp: new Date().toISOString()
   });
+});
+
+// ============================================================================
+// User Profile & Personalization Endpoints
+// ============================================================================
+
+// Get or create user profile
+app.get('/api/user/:userId', (req, res) => {
+  const { userId } = req.params;
+  const profile = userService.getOrCreateUser(userId);
+  res.json(profile);
+});
+
+// Record content watched
+app.post('/api/user/:userId/watch', (req, res): void => {
+  try {
+    const { userId } = req.params;
+    const { contentId, completionRate, rating, mood, tone, sessionDuration } = req.body;
+
+    if (!contentId || completionRate === undefined) {
+      res.status(400).json({ error: 'Missing contentId or completionRate' });
+      return;
+    }
+
+    const profile = userService.recordWatch(userId, contentId, {
+      completionRate,
+      rating,
+      mood,
+      tone,
+      wasRecommended: true,
+      sessionDuration
+    });
+
+    res.json({ success: true, stats: profile.stats });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// Rate content
+app.post('/api/user/:userId/rate', (req, res): void => {
+  try {
+    const { userId } = req.params;
+    const { contentId, rating } = req.body;
+
+    if (!contentId || !rating || rating < 1 || rating > 5) {
+      res.status(400).json({ error: 'Invalid contentId or rating (1-5)' });
+      return;
+    }
+
+    const profile = userService.rateContent(userId, contentId, rating);
+    res.json({ success: true, avgRating: profile.stats.avgRating });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// Like content
+app.post('/api/user/:userId/like', (req, res): void => {
+  try {
+    const { userId } = req.params;
+    const { contentId } = req.body;
+
+    if (!contentId) {
+      res.status(400).json({ error: 'Missing contentId' });
+      return;
+    }
+
+    userService.likeContent(userId, contentId);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// Dislike content
+app.post('/api/user/:userId/dislike', (req, res): void => {
+  try {
+    const { userId } = req.params;
+    const { contentId } = req.body;
+
+    if (!contentId) {
+      res.status(400).json({ error: 'Missing contentId' });
+      return;
+    }
+
+    userService.dislikeContent(userId, contentId);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// Add to watchlist
+app.post('/api/user/:userId/watchlist', (req, res): void => {
+  try {
+    const { userId } = req.params;
+    const { contentId } = req.body;
+
+    if (!contentId) {
+      res.status(400).json({ error: 'Missing contentId' });
+      return;
+    }
+
+    const profile = userService.addToWatchlist(userId, contentId);
+    res.json({ success: true, watchlist: profile.watchlist });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// Remove from watchlist
+app.delete('/api/user/:userId/watchlist/:contentId', (req, res) => {
+  try {
+    const { userId, contentId } = req.params;
+    const profile = userService.removeFromWatchlist(userId, contentId);
+    res.json({ success: true, watchlist: profile.watchlist });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// Get user stats
+app.get('/api/user/:userId/stats', (req, res) => {
+  const { userId } = req.params;
+  const stats = userService.getUserStats(userId);
+  const topGenres = userService.getTopGenres(userId, 5);
+  res.json({ stats, topGenres });
+});
+
+// Get personalized recommendations
+app.post('/api/user/:userId/personalized', async (req, res): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const { mood, tone } = req.body;
+
+    if (!mood || !tone) {
+      res.status(400).json({ error: 'Missing mood or tone' });
+      return;
+    }
+
+    // Use vector store for semantic search
+    if (vectorStore) {
+      const recentlyWatched = userService.getRecentlyWatched(userId, 10);
+      const results = await vectorStore.search(mood, tone, {
+        limit: 5,
+        excludeIds: recentlyWatched
+      });
+
+      res.json({
+        recommendations: results.map(r => ({
+          id: r.content.id,
+          title: r.content.title,
+          year: r.content.year,
+          runtime: r.content.runtime,
+          genres: r.content.genres,
+          overview: r.content.overview,
+          posterUrl: r.content.posterUrl,
+          matchScore: Math.round((1 - r.score) * 100), // Convert distance to match %
+          mood: r.content.mood,
+          tone: r.content.tone
+        }))
+      });
+    } else {
+      res.status(503).json({ error: 'Vector store not initialized' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+});
+
+// Get "Continue Watching" for user
+app.get('/api/user/:userId/continue-watching', (req, res) => {
+  const { userId } = req.params;
+  const content = personalizationAgent.getContinueWatching(userId);
+  res.json({ content });
+});
+
+// Get watchlist content
+app.get('/api/user/:userId/watchlist', (req, res) => {
+  const { userId } = req.params;
+  const content = personalizationAgent.getWatchlistContent(userId);
+  res.json({ content });
+});
+
+// Get trending for user (personalized)
+app.get('/api/user/:userId/trending', (req, res) => {
+  const { userId } = req.params;
+  const content = personalizationAgent.getTrendingForUser(userId);
+  res.json({ content });
+});
+
+// Semantic text search
+app.post('/api/search', async (req, res): Promise<void> => {
+  try {
+    const { query, limit = 10 } = req.body;
+
+    if (!query) {
+      res.status(400).json({ error: 'Missing query' });
+      return;
+    }
+
+    if (vectorStore) {
+      const results = await vectorStore.searchByText(query, { limit });
+      res.json({
+        results: results.map(r => ({
+          id: r.content.id,
+          title: r.content.title,
+          year: r.content.year,
+          genres: r.content.genres,
+          overview: r.content.overview,
+          score: r.score
+        }))
+      });
+    } else {
+      res.status(503).json({ error: 'Vector store not initialized' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+  }
 });
 
 // Serve index.html for root path
@@ -220,13 +449,28 @@ app.listen(PORT, async () => {
   console.log(`📍 Server running at: http://localhost:${PORT}`);
   console.log(`\n💡 Features:`);
   console.log(`   - Interactive quiz flow (🌙 Unwind vs ⚡ Engage)`);
-  console.log(`   - Smooth animations and transitions`);
-  console.log(`   - TV5MONDE brand styling`);
-  console.log(`   - Mock data for demo purposes`);
+  console.log(`   - RuVector semantic search with n-gram embeddings`);
+  console.log(`   - User profiles & watch history`);
+  console.log(`   - Personalized recommendations`);
   console.log(`\n🔧 Endpoints:`);
-  console.log(`   GET  /              - Web UI`);
-  console.log(`   POST /api/recommend - Get recommendation`);
-  console.log(`   GET  /api/health    - Health check`);
+  console.log(`   GET  /                          - Web UI`);
+  console.log(`   POST /api/recommend             - Get recommendation`);
+  console.log(`   POST /api/search                - Semantic text search`);
+  console.log(`   GET  /api/user/:id              - Get user profile`);
+  console.log(`   POST /api/user/:id/watch        - Record watch`);
+  console.log(`   POST /api/user/:id/personalized - Personalized recommendations`);
+  console.log(`   GET  /api/health                - Health check`);
+
+  // Initialize vector store
+  console.log(`\n⏳ Initializing vector store...`);
+  try {
+    vectorStore = new RuVectorStore({ dimensions: 128 });
+    await vectorStore.initialize();
+    const stats = await vectorStore.getStats();
+    console.log(`✅ Vector store ready (${stats.contentCount} items indexed)`);
+  } catch (error) {
+    console.warn('⚠️  Vector store initialization failed:', error);
+  }
 
   // Try to initialize MCP client
   await initializeMCPClient();

@@ -124,15 +124,16 @@ async function initializeMCPClient() {
 }
 
 // API endpoint for recommendations
-app.post('/api/recommend', async (req, res) => {
+app.post('/api/recommend', async (req, res): Promise<void> => {
   try {
     const { mood, tone, format } = req.body;
 
     // Validate input
     if (!mood || !tone) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Missing required fields: mood and tone'
       });
+      return;
     }
 
     // Map UI 'tone' to MCP 'goal' parameter
@@ -155,8 +156,9 @@ app.post('/api/recommend', async (req, res) => {
         });
 
         // Extract the actual data from MCP response
-        if (result.content && result.content[0] && result.content[0].text) {
-          const mcpData = JSON.parse(result.content[0].text);
+        const content = result.content as Array<{ type: string; text?: string }>;
+        if (content && content[0] && content[0].text) {
+          const mcpData = JSON.parse(content[0].text);
 
           // Transform to UI format
           const uiResponse = {
@@ -170,7 +172,8 @@ app.post('/api/recommend', async (req, res) => {
             posterUrl: mcpData.topPick.posterUrl
           };
 
-          return res.json(uiResponse);
+          res.json(uiResponse);
+          return;
         }
       } catch (mcpError) {
         console.warn('MCP call failed, falling back to mock data:', mcpError);
@@ -183,7 +186,8 @@ app.post('/api/recommend', async (req, res) => {
 
     if (!recommendation) {
       // Return a default recommendation
-      return res.json(mockRecommendations['unwind-laugh-movie']);
+      res.json(mockRecommendations['unwind-laugh-movie']);
+      return;
     }
 
     res.json(recommendation);
@@ -197,7 +201,7 @@ app.post('/api/recommend', async (req, res) => {
 });
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     mcpConnected: mcpClient !== null,
@@ -206,7 +210,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Serve index.html for root path
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, '../../public/index.html'));
 });
 

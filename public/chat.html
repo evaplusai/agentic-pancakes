@@ -233,10 +233,31 @@
             animation: fadeInUp 0.6s ease;
         }
 
-        .card-image {
+        .card-image-container {
             width: 100%;
             height: 200px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card-image {
+            width: 100%;
+            height: 100%;
             object-fit: cover;
+        }
+
+        .card-image-fallback {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .movie-icon {
+            font-size: 64px;
+            opacity: 0.8;
         }
 
         .card-content {
@@ -246,18 +267,32 @@
         .card-title {
             font-size: 20px;
             font-weight: 600;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
 
         .card-match {
             color: #4ade80;
             font-size: 14px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .card-meta {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 6px;
         }
 
         .card-genres {
             font-size: 12px;
-            color: rgba(255, 255, 255, 0.6);
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 10px;
+        }
+
+        .card-description {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.5;
             margin-bottom: 15px;
         }
 
@@ -339,6 +374,62 @@
             fill: white;
         }
 
+        /* Header branding */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            background: linear-gradient(to bottom, rgba(10, 10, 15, 0.9), transparent);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            font-size: 28px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .brand-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .brand-name {
+            font-size: 22px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #a78bfa, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .brand-tagline {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+            letter-spacing: 1px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
         /* Mobile responsive */
         @media (max-width: 768px) {
             .orb-container {
@@ -362,11 +453,22 @@
     <!-- Ambient stars -->
     <div class="stars" id="stars"></div>
 
-    <!-- Audio toggle -->
-    <div class="audio-toggle" id="audioToggle" title="Toggle ambient sound">
-        <svg class="audio-icon" viewBox="0 0 24 24">
-            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-        </svg>
+    <!-- Header branding -->
+    <div class="header">
+        <div class="brand">
+            <div class="brand-icon">✨</div>
+            <div class="brand-text">
+                <span class="brand-name">Aura</span>
+                <span class="brand-tagline">Your Content Companion</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="audio-toggle" id="audioToggle" title="Toggle ambient sound">
+                <svg class="audio-icon" viewBox="0 0 24 24">
+                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                </svg>
+            </div>
+        </div>
     </div>
 
     <div class="container">
@@ -878,68 +980,67 @@
                 }
             }
 
-            showContent(mood) {
-                const contentData = {
-                    unwind: {
-                        title: "Midnight in Paris",
-                        match: "94% match",
-                        genres: "Romance • Fantasy • Drama",
-                        image: "https://via.placeholder.com/400x200/8B5CF6/FFFFFF?text=Midnight+in+Paris"
-                    },
-                    engage: {
-                        title: "Intouchables",
-                        match: "91% match",
-                        genres: "Comedy • Drama • Friendship",
-                        image: "https://via.placeholder.com/400x200/F59E0B/FFFFFF?text=Intouchables"
-                    },
-                    laugh: {
-                        title: "Amélie",
-                        match: "96% match",
-                        genres: "Romance • Comedy • Whimsical",
-                        image: "https://via.placeholder.com/400x200/EC4899/FFFFFF?text=Amelie"
-                    },
-                    feel: {
-                        title: "Blue Is the Warmest Color",
-                        match: "88% match",
-                        genres: "Drama • Romance • Coming-of-age",
-                        image: "https://via.placeholder.com/400x200/3B82F6/FFFFFF?text=Blue+Is+the+Warmest+Color"
-                    },
-                    thrill: {
-                        title: "La Haine",
-                        match: "92% match",
-                        genres: "Drama • Crime • Social",
-                        image: "https://via.placeholder.com/400x200/DC2626/FFFFFF?text=La+Haine"
-                    },
-                    think: {
-                        title: "Faces Places",
-                        match: "89% match",
-                        genres: "Documentary • Art • Travel",
-                        image: "https://via.placeholder.com/400x200/10B981/FFFFFF?text=Faces+Places"
-                    }
+            async showContent(mood) {
+                // Map mood to API mood/tone
+                const moodMap = {
+                    unwind: { mood: 'unwind', tone: 'feel' },
+                    engage: { mood: 'engage', tone: 'thrill' },
+                    laugh: { mood: 'unwind', tone: 'laugh' },
+                    feel: { mood: 'unwind', tone: 'feel' },
+                    thrill: { mood: 'engage', tone: 'thrill' },
+                    think: { mood: 'engage', tone: 'think' }
                 };
 
-                const content = contentData[mood] || contentData.unwind;
+                const params = moodMap[mood] || moodMap.unwind;
 
-                const card = document.createElement('div');
-                card.className = 'message ai';
-                card.innerHTML = `
-                    <div class="content-card">
-                        <img class="card-image" src="${content.image}" alt="${content.title}">
-                        <div class="card-content">
-                            <div class="card-title">${content.title}</div>
-                            <div class="card-match">${content.match}</div>
-                            <div class="card-genres">${content.genres}</div>
-                            <div class="card-actions">
-                                <button class="card-button primary">Watch Now</button>
-                                <button class="card-button secondary">Save</button>
-                                <button class="card-button secondary">Another</button>
+                try {
+                    const response = await fetch('/api/recommend', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(params)
+                    });
+                    const data = await response.json();
+
+                    const card = document.createElement('div');
+                    card.className = 'message ai';
+                    card.innerHTML = `
+                        <div class="content-card">
+                            <div class="card-image-container">
+                                ${data.posterUrl
+                                    ? `<img class="card-image" src="${data.posterUrl}" alt="${data.title}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`
+                                    : ''
+                                }
+                                <div class="card-image-fallback" style="${data.posterUrl ? 'display:none' : 'display:flex'}">
+                                    <span class="movie-icon">🎬</span>
+                                </div>
+                            </div>
+                            <div class="card-content">
+                                <div class="card-title">${data.title}</div>
+                                <div class="card-match">✨ ${data.match}% match</div>
+                                <div class="card-meta">${data.runtime} • ${data.year}</div>
+                                <div class="card-genres">${data.genres?.join(' • ') || ''}</div>
+                                <div class="card-description">${data.description?.slice(0, 120)}...</div>
+                                <div class="card-actions">
+                                    <button class="card-button primary" onclick="window.open('https://www.tv5monde.com', '_blank')">
+                                        <span>▶</span> Watch Now
+                                    </button>
+                                    <button class="card-button secondary" onclick="chat.handleUserMessage('save this')">
+                                        <span>💾</span> Save
+                                    </button>
+                                    <button class="card-button secondary" onclick="chat.handleUserMessage('show me another')">
+                                        <span>🔄</span> Another
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `;
+                    `;
 
-                this.messagesContainer.appendChild(card);
-                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                    this.messagesContainer.appendChild(card);
+                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                } catch (error) {
+                    console.error('Failed to fetch recommendation:', error);
+                    this.addMessage("Hmm, I'm having trouble finding something. Let's try again?", false, true);
+                }
 
                 setTimeout(() => this.showDefaultChips(), 1000);
             }

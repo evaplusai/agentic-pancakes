@@ -63,7 +63,6 @@ export interface ClaudeStreamChunk {
 // ============================================================================
 
 const DEFAULT_HAIKU_MODEL: ClaudeModel = 'claude-3-5-haiku-latest';
-const DEFAULT_SONNET_MODEL: ClaudeModel = 'claude-3-5-sonnet-latest';
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 1.0;
 const DEFAULT_TIMEOUT = 30000; // 30 seconds

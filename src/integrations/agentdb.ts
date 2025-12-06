@@ -136,12 +136,12 @@ export class AgentDBIntegration {
       await this.initialize();
     }
 
-    const { query, limit = 50, filters, includeProvenance = false } = options;
+    const { query, limit = 50, filters: _filters, includeProvenance = false } = options;
 
     logger.debug('Executing vector search', {
       dimensions: query.length,
       limit,
-      hasFilters: !!filters
+      hasFilters: !!_filters
     });
 
     try {
@@ -281,12 +281,12 @@ export class AgentDBIntegration {
   /**
    * Query patterns from ReasoningBank
    */
-  async queryPatterns(context: Record<string, unknown>): Promise<Pattern[]> {
+  async queryPatterns(_context: Record<string, unknown>): Promise<Pattern[]> {
     if (!this.initialized) {
       await this.initialize();
     }
 
-    logger.debug('Querying patterns', { context });
+    logger.debug('Querying patterns', { context: _context });
 
     try {
       // TODO: Replace with actual ReasoningBank query
@@ -407,7 +407,7 @@ export class ReasoningBank {
     return this.agentdb.queryPatterns(context);
   }
 
-  async getSuccessRate(strategy: string): Promise<number> {
+  async getSuccessRate(_strategy: string): Promise<number> {
     // Stub: return default success rate
     return 0.5;
   }
@@ -418,17 +418,18 @@ export class ReasoningBank {
 // ============================================================================
 
 export class ReflexionMemory {
-  constructor(private agentdb: AgentDBIntegration) {
+  constructor(_agentdb: AgentDBIntegration) {
     logger.info('ReflexionMemory initialized (stub mode)');
+    // Phase 2: Use _agentdb for actual reflexion memory operations
   }
 
-  async storeEpisode(episode: unknown): Promise<void> {
+  async storeEpisode(_episode: unknown): Promise<void> {
     logger.debug('Storing reflexion episode (stub)');
     // Stub implementation
   }
 
-  async queryFailures(context: Record<string, unknown>): Promise<unknown[]> {
-    logger.debug('Querying failures (stub)', { context });
+  async queryFailures(_context: Record<string, unknown>): Promise<unknown[]> {
+    logger.debug('Querying failures (stub)', { context: _context });
     // Stub implementation
     return [];
   }

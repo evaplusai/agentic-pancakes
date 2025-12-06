@@ -38,7 +38,7 @@ export class TrendAgent {
   /**
    * Get trending boosts for content
    */
-  async getBoosts(emotionalState: UniversalEmotionalState): Promise<Map<string, number>> {
+  async getBoosts(_emotionalState: UniversalEmotionalState): Promise<Map<string, number>> {
     try {
       console.log(`[Trend] Fetching trending boosts`);
 

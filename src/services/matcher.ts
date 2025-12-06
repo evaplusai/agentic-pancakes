@@ -87,18 +87,18 @@ export class MatcherService {
   async score(
     candidates: ContentCandidate[],
     emotionalState: UniversalEmotionalState,
-    userVector?: UserStyleVector
+    _userVector?: UserStyleVector
   ): Promise<RankedContent[]> {
     logger.debug('Scoring candidates', {
       candidateCount: candidates.length,
-      hasUserVector: !!userVector
+      hasUserVector: !!_userVector
     });
 
     const scoredCandidates = candidates.map(candidate => {
       const breakdown = this.calculateScoreBreakdown(
         candidate,
         emotionalState,
-        userVector
+        _userVector
       );
 
       const totalScore = this.calculateTotalScore(breakdown);
@@ -163,7 +163,7 @@ export class MatcherService {
   private calculateScoreBreakdown(
     candidate: ContentCandidate,
     emotionalState: UniversalEmotionalState,
-    userVector?: UserStyleVector
+    _userVector?: UserStyleVector
   ): RankedContent['breakdown'] {
     return {
       vectorSim: candidate.similarity,

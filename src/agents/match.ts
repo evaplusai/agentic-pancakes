@@ -44,7 +44,7 @@ export class MatchAgent {
     candidates: ContentCandidate[],
     emotionalState: UniversalEmotionalState,
     trendingBoosts: Map<string, number>,
-    userId: string
+    _userId: string
   ): Promise<ScoredCandidate[]> {
     try {
       console.log(`[Match] Scoring ${candidates.length} candidates`);
@@ -292,31 +292,16 @@ export class MatchAgent {
     return Math.max(min, Math.min(max, value));
   }
 
-  /**
-   * Query learned weights from ReasoningBank
-   * Phase 2: Dynamic weight learning
-   */
-  private async queryLearnedWeights(
-    emotionalState: UniversalEmotionalState,
-    userId: string
-  ): Promise<Record<string, number> | null> {
-    try {
-      // Phase 2: Query AgentDB ReasoningBank
-      // const patterns = await agentDB.reasoningBank.queryPatterns({
-      //   emotionalState,
-      //   userId,
-      //   minConfidence: 0.75
-      // });
-      //
-      // if (patterns.length > 0) {
-      //   return patterns[0].weights;
-      // }
-
-      return null;
-
-    } catch (error) {
-      console.warn(`[Match] Failed to query learned weights:`, error);
-      return null;
-    }
-  }
+  // Phase 2: Dynamic weight learning from ReasoningBank
+  // private async queryLearnedWeights(
+  //   emotionalState: UniversalEmotionalState,
+  //   userId: string
+  // ): Promise<Record<string, number> | null> {
+  //   const patterns = await agentDB.reasoningBank.queryPatterns({
+  //     emotionalState,
+  //     userId,
+  //     minConfidence: 0.75
+  //   });
+  //   return patterns.length > 0 ? patterns[0].weights : null;
+  // }
 }

@@ -14,8 +14,6 @@ import {
   Provenance,
   createProvenance,
   determineConfidenceLevel,
-  generateReasoningSummary,
-  createContentItem,
   Availability
 } from '../models/index.js';
 import { ScoredCandidate } from './match.js';
@@ -84,10 +82,10 @@ export class PresentAgent {
   private async formatContentItem(
     candidate: ScoredCandidate,
     emotionalState: UniversalEmotionalState,
-    userId: string
+    _userId: string
   ): Promise<ContentItem> {
     // Generate provenance
-    const provenance = await this.generateProvenance(candidate, emotionalState, userId);
+    const provenance = await this.generateProvenance(candidate, emotionalState);
 
     // Generate deeplink
     const deeplink = this.generateDeeplink(candidate);
@@ -121,8 +119,7 @@ export class PresentAgent {
    */
   private async generateProvenance(
     candidate: ScoredCandidate,
-    emotionalState: UniversalEmotionalState,
-    userId: string
+    emotionalState: UniversalEmotionalState
   ): Promise<Provenance> {
     try {
       // Phase 2: Query AgentDB ReasoningBank for trajectory evidence
@@ -181,7 +178,7 @@ export class PresentAgent {
   private generateReasoning(
     candidate: ScoredCandidate,
     emotionalState: UniversalEmotionalState,
-    userId: string
+    _userId: string
   ): Reasoning {
     const mood = emotionalState.energy > 0.5 ? 'engage' : 'unwind';
     const primaryNeed = this.getPrimaryNeed(emotionalState);
@@ -298,7 +295,7 @@ export class PresentAgent {
   /**
    * Get content availability
    */
-  private getAvailability(candidate: ScoredCandidate): Availability {
+  private getAvailability(_candidate: ScoredCandidate): Availability {
     // MVP: All content available in France
     return {
       regions: ['FR'],

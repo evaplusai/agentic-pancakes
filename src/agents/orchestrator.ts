@@ -8,20 +8,13 @@
  */
 
 import {
-  UniversalEmotionalState,
   GetRecommendationInput,
   GetRecommendationOutput,
-  ContentItem,
-  Reasoning,
   createRecommendationMetadata,
-  determineConfidenceLevel,
-  generateReasoningSummary,
   Trajectory,
   createTrajectory,
   addActionToTrajectory,
   setTrajectoryRecommendation,
-  setTrajectoryOutcome,
-  generateVerdict,
   calculateImplicitSatisfaction
 } from '../models/index.js';
 

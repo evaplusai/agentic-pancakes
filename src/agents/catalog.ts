@@ -9,9 +9,7 @@
 
 import {
   UniversalEmotionalState,
-  ContentVector,
-  Constraints,
-  createDefaultContentVector
+  Constraints
 } from '../models/index.js';
 
 /**
@@ -161,7 +159,7 @@ export class CatalogAgent {
    * Phase 2: Integrate with AgentDB HNSW search
    */
   private async vectorSearch(
-    queryVector: Float32Array,
+    _queryVector: Float32Array,
     options: SearchOptions
   ): Promise<ContentCandidate[]> {
     try {
@@ -347,7 +345,7 @@ export class CatalogAgent {
       // Apply filters
       let filtered = mockCandidates;
 
-      if (options.filters?.maxRuntime) {
+      if (options.filters?.runtime?.max) {
         filtered = filtered.filter(c =>
           !c.metadata.runtime || c.metadata.runtime <= options.filters!.runtime!.max!
         );

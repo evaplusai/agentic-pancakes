@@ -157,7 +157,7 @@ export class TMDBClient {
   async getMovie(movieId: number): Promise<TMDBMovie> {
     const cacheKey = createCacheKey('tmdb', 'movie', movieId);
 
-    return apiCache.getOrSet(
+    return await apiCache.getOrSet(
       cacheKey,
       async () => {
         await this.checkRateLimit();
@@ -176,7 +176,7 @@ export class TMDBClient {
         );
       },
       DETAILS_CACHE_TTL
-    );
+    ) as TMDBMovie;
   }
 
   /**
@@ -185,7 +185,7 @@ export class TMDBClient {
   async getTVShow(tvId: number): Promise<TMDBTVShow> {
     const cacheKey = createCacheKey('tmdb', 'tv', tvId);
 
-    return apiCache.getOrSet(
+    return await apiCache.getOrSet(
       cacheKey,
       async () => {
         await this.checkRateLimit();
@@ -204,7 +204,7 @@ export class TMDBClient {
         );
       },
       DETAILS_CACHE_TTL
-    );
+    ) as TMDBTVShow;
   }
 
   /**
@@ -216,7 +216,7 @@ export class TMDBClient {
   ): Promise<TMDBTrendingResponse> {
     const cacheKey = createCacheKey('tmdb', 'trending', mediaType, timeWindow);
 
-    return apiCache.getOrSet(
+    return await apiCache.getOrSet(
       cacheKey,
       async () => {
         await this.checkRateLimit();
@@ -235,7 +235,7 @@ export class TMDBClient {
         );
       },
       TRENDING_CACHE_TTL
-    );
+    ) as TMDBTrendingResponse;
   }
 
   /**
@@ -248,7 +248,7 @@ export class TMDBClient {
   ): Promise<TMDBTrendingResponse> {
     const cacheKey = createCacheKey('tmdb', 'search', mediaType, query, page);
 
-    return apiCache.getOrSet(
+    return await apiCache.getOrSet(
       cacheKey,
       async () => {
         await this.checkRateLimit();
@@ -269,7 +269,7 @@ export class TMDBClient {
         );
       },
       SEARCH_CACHE_TTL
-    );
+    ) as TMDBTrendingResponse;
   }
 
   /**
@@ -278,7 +278,7 @@ export class TMDBClient {
   async getGenres(mediaType: MediaType): Promise<TMDBGenre[]> {
     const cacheKey = createCacheKey('tmdb', 'genres', mediaType);
 
-    return apiCache.getOrSet(
+    return await apiCache.getOrSet(
       cacheKey,
       async () => {
         await this.checkRateLimit();
@@ -296,10 +296,10 @@ export class TMDBClient {
           'genres'
         );
 
-        return response.genres as TMDBGenre[];
+        return response.genres;
       },
       24 * 60 * 60 * 1000 // 24 hours (genres rarely change)
-    );
+    ) as TMDBGenre[];
   }
 
   /**
@@ -356,7 +356,7 @@ export class TMDBClient {
           );
         }
 
-        const data = await response.json();
+        const data = await response.json() as T;
         return data;
       },
       `tmdb-${operation}`,

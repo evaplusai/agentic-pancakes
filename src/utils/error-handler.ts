@@ -295,8 +295,8 @@ export async function withRetry<T>(
       if (!shouldRetry(lastError)) {
         logger.warn(
           `Operation '${operationName}' failed with non-retryable error`,
-          undefined,
-          { operationName, error: lastError.message }
+          lastError,
+          { operationName }
         );
         break;
       }
@@ -355,7 +355,9 @@ export class CircuitBreaker {
   constructor(
     private name: string,
     private options: CircuitBreakerOptions
-  ) {}
+  ) {
+    // Circuit breaker initialization
+  }
 
   async execute<T>(operation: () => Promise<T>): Promise<T> {
     // Check if circuit is open
@@ -398,7 +400,7 @@ export class CircuitBreaker {
       this.state = 'open';
       logger.error(
         `Circuit breaker for '${this.name}' opened after ${this.failures} failures`,
-        undefined,
+        new Error('Circuit breaker threshold exceeded'),
         { circuitState: 'open', failures: this.failures }
       );
     }

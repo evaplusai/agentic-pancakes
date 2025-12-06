@@ -10,9 +10,7 @@
 import {
   UniversalEmotionalState,
   quizToEmotionalState,
-  createDefaultEmotionalState,
-  RequestContext,
-  ContextInfo
+  RequestContext
 } from '../models/index.js';
 
 /**
@@ -46,7 +44,7 @@ export class IntentAgent {
       const adjustedState = this.applyContextualAdjustments(baseState, context);
 
       // Step 3: Query Reflexion Memory for constraints (Phase 2 - stubbed)
-      const constraints = await this.queryReflexionMemory(userId, adjustedState);
+      const _constraints = await this.queryReflexionMemory(userId, adjustedState);
 
       console.log(`[Intent] Emotional state extracted:`, {
         energy: adjustedState.energy,
@@ -54,7 +52,7 @@ export class IntentAgent {
         arousal: adjustedState.arousal,
         cognitiveCapacity: adjustedState.cognitiveCapacity,
         primaryNeed: this.getPrimaryNeed(adjustedState),
-        constraintCount: constraints.length
+        constraintCount: _constraints.length
       });
 
       return adjustedState;
@@ -223,8 +221,8 @@ export class IntentAgent {
    * MVP: Stubbed - will integrate with AgentDB Reflexion Memory in Phase 2
    */
   private async queryReflexionMemory(
-    userId: string,
-    state: UniversalEmotionalState
+    _userId: string,
+    _state: UniversalEmotionalState
   ): Promise<string[]> {
     try {
       // Phase 2: Query AgentDB Reflexion Memory

@@ -12,7 +12,6 @@ import {
   ContentVector,
   ContentMetadata,
   createContentVectorFromMetadata,
-  setMetadataFeatures,
   CONTENT_VECTOR_DIMENSIONS
 } from '../models/content-vector.js';
 import { ValidationError } from '../utils/error-handler.js';

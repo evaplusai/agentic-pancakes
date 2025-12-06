@@ -1,0 +1,225 @@
+# Universal Content Discovery Platform
+
+## Site Description
+AI-powered content recommendation system that understands how you feel and suggests what to watch in under 3 seconds.
+
+## Purpose
+This service provides emotion-first content recommendations using a 6-agent swarm architecture powered by Claude AI and AgentDB v2.0 self-learning capabilities.
+
+## Available Actions
+
+### get_recommendation
+Get personalized content recommendations based on your emotional state.
+
+Input:
+- Quiz responses (60-second emotional state quiz)
+- Natural language description (optional)
+- Context (time of day, device, watching alone/with others)
+- User ID (optional, for personalization)
+
+Output:
+- Top recommendation with match score
+- 3 alternative suggestions
+- Human-readable reasoning
+- Provenance (supporting evidence and confidence)
+- Direct watch links
+
+Target latency: < 3 seconds
+
+### refine_search
+Refine your search with additional filters while maintaining emotional context.
+
+Input:
+- Session ID from previous recommendation
+- Filters (genres, platforms, runtime, language, release year)
+
+Output:
+- Refined content results
+- Total result count
+- Applied filters
+
+### get_trending
+Discover trending content across streaming platforms.
+
+Input:
+- Platform (Netflix, Amazon Prime, Disney+, TV5MONDE, or all)
+- Region (default: France)
+- Optional emotional filter
+
+Output:
+- Trending content list with ranks
+- Emotional match scores (if filter applied)
+- Last update timestamp
+
+## Capabilities
+
+### Emotion-Based Matching
+The system extracts emotional states from:
+- Quick 60-second quiz (unwind vs engage, laugh/feel/thrill/think)
+- Natural language input ("I want something light and funny")
+- Voice features (tone, pace, sentiment) - coming soon
+
+### Multi-Platform Search
+Search across:
+- TV5MONDE original content
+- Netflix France
+- Amazon Prime Video France
+- Disney+ France
+
+### Self-Learning
+The platform learns from user interactions:
+- Tracks watch completion rates
+- Identifies successful recommendations
+- Adapts scoring weights over time
+- 97.9% self-healing accuracy
+
+### Performance
+- Sub-3-second recommendations
+- 150x faster vector search (HNSW)
+- 32.6M operations/second (ReasoningBank)
+- Parallel agent execution
+
+## Agent Architecture
+
+This system uses 6 specialized AI agents:
+
+1. **Intent Agent** (Claude Haiku, <300ms)
+   - Extracts emotional state from quiz/text
+   - Queries reflexion memory for learned constraints
+   - Outputs universal emotional state vector
+
+2. **Catalog Agent** (AgentDB, <100ms)
+   - Vector similarity search (768D)
+   - HNSW indexing for speed
+   - Returns top 50 candidates
+
+3. **Trend Agent** (TMDB/FlixPatrol, <200ms)
+   - Fetches trending content
+   - Provides boosting scores
+   - Updates daily
+
+4. **Match Agent** (Claude Haiku, <200ms)
+   - Scores candidates with weighted formula
+   - Applies learned patterns from ReasoningBank
+   - Ranks and diversifies results
+
+5. **Present Agent** (Claude Sonnet, <500ms)
+   - Generates provenance and confidence
+   - Creates human-readable explanations
+   - Builds watch deeplinks
+
+6. **Orchestrator Agent** (Claude Sonnet 4, <500ms)
+   - Coordinates workflow
+   - Handles errors and timeouts
+   - Stores trajectories for learning
+
+## Authentication
+API key required. Include in header:
+```
+X-API-Key: your-api-key-here
+```
+
+Rate limit: 100 requests per minute per user
+
+## Endpoints
+
+Base URL: https://content-discovery.tv5monde.com/api
+
+- POST /recommendations - Get personalized recommendations
+- POST /search - Refine search with filters
+- GET /trending - Get trending content
+- POST /feedback - Submit user feedback
+
+## MCP Integration
+
+This service implements the Model Context Protocol (MCP) for Claude Desktop integration:
+
+### STDIO Transport
+For local/desktop clients:
+```bash
+npx @universal-content-discovery/mcp-server
+```
+
+### SSE Transport
+For web clients:
+```
+https://content-discovery.tv5monde.com/mcp/sse
+```
+
+### Available MCP Tools
+- get_recommendation - Get personalized content
+- refine_search - Refine with filters
+- get_trending - Trending content
+- user_feedback - Submit feedback
+- get_profile - Get user profile
+- health_check - Service health
+
+## Privacy & Data
+
+### GDPR Compliance
+- Purpose limitation: recommendations only
+- Data minimization: only necessary data collected
+- Right to erasure: user deletion endpoint available
+- Data portability: export endpoint available
+- 90-day trajectory retention (configurable)
+
+### Data Storage
+- User trajectories: anonymized and encrypted
+- PII: separate storage with encryption at rest
+- Vectors: stored in local AgentDB (no cloud dependency)
+- Metadata: SQLite database
+
+## Response Format
+
+All responses are JSON with the following structure:
+
+```json
+{
+  "sessionId": "uuid",
+  "topPick": {
+    "title": "Title",
+    "matchScore": 87,
+    "description": "Synopsis",
+    "genres": ["Drama", "Comedy"],
+    "runtime": 120,
+    "year": 2023,
+    "platform": "TV5MONDE",
+    "deeplink": "https://tv5monde.com/watch/...",
+    "metadata": {
+      "director": "Name",
+      "cast": ["Actor 1", "Actor 2"],
+      "rating": 8.5
+    }
+  },
+  "alternatives": [...],
+  "reasoning": "Because you wanted to unwind with something light...",
+  "provenance": {
+    "trajectories": 127,
+    "confidence": 0.87,
+    "evidence": "Users like you completed this 87% of the time"
+  },
+  "latency": 2847
+}
+```
+
+## Usage Instructions for AI Agents
+
+1. **Start with emotion**: Use get_recommendation with quiz responses or natural language
+2. **Refine if needed**: Use refine_search to apply filters
+3. **Track feedback**: Call user_feedback with watch actions for learning
+4. **Explore trending**: Use get_trending for popular content
+
+The system is optimized for conversational interfaces where users describe their mood rather than browsing catalogs.
+
+## Support
+- Documentation: /docs
+- API Reference: /api/docs
+- Contact: api-support@tv5monde.com
+
+## Technology Stack
+- AI: Claude (Sonnet 4, Haiku)
+- Vector DB: AgentDB v2.0
+- Learning: ReasoningBank, Reflexion Memory
+- Content API: TMDB
+- Trending: FlixPatrol
+- Protocol: MCP (STDIO + SSE)

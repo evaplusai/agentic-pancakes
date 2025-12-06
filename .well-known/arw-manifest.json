@@ -1,0 +1,465 @@
+{
+  "version": "0.1",
+  "profile": "ARW-1",
+  "site": {
+    "name": "Universal Content Discovery Platform",
+    "description": "Emotion-first content recommendations powered by self-learning AI agents. Get personalized movie and TV show suggestions in under 3 seconds based on how you feel right now.",
+    "url": "https://content-discovery.tv5monde.com",
+    "contact": {
+      "email": "api-support@tv5monde.com"
+    }
+  },
+  "content": {
+    "paths": [
+      {
+        "path": "/api/recommendations",
+        "description": "Get personalized content recommendations based on emotional state",
+        "machine_view": {
+          "format": "json",
+          "schema": "/schemas/recommendation-response.json",
+          "authentication": "api_key"
+        },
+        "actions": [
+          "get_recommendation"
+        ]
+      },
+      {
+        "path": "/api/trending",
+        "description": "Get trending content across platforms (Netflix, Amazon Prime, Disney+)",
+        "machine_view": {
+          "format": "json",
+          "schema": "/schemas/trending-response.json",
+          "authentication": "api_key"
+        },
+        "actions": [
+          "get_trending"
+        ]
+      },
+      {
+        "path": "/api/search",
+        "description": "Refine content search with filters and preferences",
+        "machine_view": {
+          "format": "json",
+          "schema": "/schemas/search-response.json",
+          "authentication": "api_key"
+        },
+        "actions": [
+          "refine_search"
+        ]
+      },
+      {
+        "path": "/api/feedback",
+        "description": "Submit user feedback to improve recommendations",
+        "machine_view": {
+          "format": "json",
+          "schema": "/schemas/feedback-request.json",
+          "authentication": "api_key"
+        },
+        "actions": [
+          "user_feedback"
+        ]
+      }
+    ]
+  },
+  "actions": [
+    {
+      "name": "get_recommendation",
+      "description": "Get personalized content recommendations based on emotional state extracted from a 60-second quiz or natural language input",
+      "endpoint": "/api/recommendations",
+      "method": "POST",
+      "parameters": {
+        "quizResponse": {
+          "type": "object",
+          "description": "User responses from the 60-second quiz",
+          "properties": {
+            "round1": {
+              "type": "string",
+              "enum": ["unwind", "engage"],
+              "description": "Primary emotional intent: unwind or engage"
+            },
+            "round2": {
+              "type": "string",
+              "enum": ["laugh", "feel", "thrill", "think"],
+              "description": "Secondary intent: laugh, feel, thrill, or think"
+            },
+            "round3": {
+              "type": "object",
+              "description": "Optional refinements (genres, runtime, language preferences)",
+              "optional": true
+            }
+          }
+        },
+        "textInput": {
+          "type": "string",
+          "description": "Natural language description of what the user wants to watch",
+          "optional": true
+        },
+        "context": {
+          "type": "object",
+          "description": "Context information (time of day, device, location)",
+          "properties": {
+            "timeOfDay": {
+              "type": "string",
+              "enum": ["morning", "afternoon", "evening", "night"]
+            },
+            "device": {
+              "type": "string",
+              "enum": ["mobile", "tablet", "desktop", "tv"]
+            },
+            "social": {
+              "type": "boolean",
+              "description": "Watching alone or with others"
+            }
+          }
+        },
+        "userId": {
+          "type": "string",
+          "description": "Optional user ID for personalized recommendations",
+          "optional": true
+        }
+      },
+      "response": {
+        "schema": "/schemas/recommendation-response.json",
+        "description": "Top recommendation plus alternatives with match scores and reasoning"
+      }
+    },
+    {
+      "name": "refine_search",
+      "description": "Refine content search with additional filters and preferences while maintaining emotional context",
+      "endpoint": "/api/search",
+      "method": "POST",
+      "parameters": {
+        "sessionId": {
+          "type": "string",
+          "description": "Session ID from previous recommendation"
+        },
+        "filters": {
+          "type": "object",
+          "description": "Additional search filters",
+          "properties": {
+            "genres": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "platform": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["Netflix", "Amazon Prime", "Disney+", "TV5MONDE"]
+              }
+            },
+            "runtime": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
+              }
+            },
+            "language": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "releaseYear": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "response": {
+        "schema": "/schemas/search-response.json",
+        "description": "Refined content results maintaining emotional context"
+      }
+    },
+    {
+      "name": "get_trending",
+      "description": "Get trending content across platforms with optional emotional filtering",
+      "endpoint": "/api/trending",
+      "method": "GET",
+      "parameters": {
+        "platform": {
+          "type": "string",
+          "enum": ["all", "Netflix", "Amazon Prime", "Disney+", "TV5MONDE"],
+          "description": "Streaming platform to query",
+          "default": "all"
+        },
+        "region": {
+          "type": "string",
+          "description": "Region code for trending data",
+          "default": "FR"
+        },
+        "emotionalFilter": {
+          "type": "object",
+          "description": "Optional emotional state to filter trending content",
+          "optional": true,
+          "properties": {
+            "energy": {
+              "type": "number",
+              "min": 0,
+              "max": 1
+            },
+            "valence": {
+              "type": "number",
+              "min": 0,
+              "max": 1
+            }
+          }
+        }
+      },
+      "response": {
+        "schema": "/schemas/trending-response.json",
+        "description": "List of trending content with metadata and scores"
+      }
+    }
+  ],
+  "schemas": {
+    "recommendation-response.json": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "description": "Session identifier for refinement"
+        },
+        "topPick": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string"
+            },
+            "matchScore": {
+              "type": "number",
+              "description": "Match score (0-100)"
+            },
+            "description": {
+              "type": "string"
+            },
+            "genres": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "runtime": {
+              "type": "number"
+            },
+            "year": {
+              "type": "number"
+            },
+            "platform": {
+              "type": "string"
+            },
+            "deeplink": {
+              "type": "string",
+              "description": "Direct link to watch"
+            },
+            "metadata": {
+              "type": "object",
+              "properties": {
+                "director": {
+                  "type": "string"
+                },
+                "cast": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "rating": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "Same structure as topPick"
+          },
+          "maxItems": 3
+        },
+        "reasoning": {
+          "type": "string",
+          "description": "Human-readable explanation of why this was recommended"
+        },
+        "provenance": {
+          "type": "object",
+          "properties": {
+            "trajectories": {
+              "type": "number",
+              "description": "Number of supporting user trajectories"
+            },
+            "confidence": {
+              "type": "number",
+              "description": "Confidence interval (0-1)"
+            },
+            "evidence": {
+              "type": "string",
+              "description": "Evidence summary"
+            }
+          }
+        },
+        "latency": {
+          "type": "number",
+          "description": "Response time in milliseconds"
+        }
+      }
+    },
+    "trending-response.json": {
+      "type": "object",
+      "properties": {
+        "trending": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "rank": {
+                "type": "number"
+              },
+              "platform": {
+                "type": "string"
+              },
+              "trendingScore": {
+                "type": "number"
+              },
+              "emotionalMatch": {
+                "type": "number",
+                "description": "Match to emotional filter (if provided)"
+              }
+            }
+          }
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "search-response.json": {
+      "type": "object",
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "Same structure as recommendation topPick"
+          }
+        },
+        "totalResults": {
+          "type": "number"
+        },
+        "filters": {
+          "type": "object",
+          "description": "Applied filters"
+        }
+      }
+    },
+    "feedback-request.json": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "contentId": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["watched", "dismissed", "saved", "completed", "abandoned"]
+        },
+        "rating": {
+          "type": "number",
+          "min": 1,
+          "max": 5,
+          "optional": true
+        },
+        "watchDuration": {
+          "type": "number",
+          "description": "Minutes watched",
+          "optional": true
+        }
+      }
+    }
+  },
+  "capabilities": {
+    "features": [
+      "emotion-based-recommendations",
+      "self-learning-agents",
+      "multi-platform-search",
+      "trending-analysis",
+      "provenance-tracking",
+      "sub-3-second-response"
+    ],
+    "agents": [
+      {
+        "name": "intent-agent",
+        "description": "Extracts emotional state from quiz or natural language",
+        "model": "Claude Haiku",
+        "latency": "< 300ms"
+      },
+      {
+        "name": "catalog-agent",
+        "description": "Vector similarity search with HNSW indexing",
+        "storage": "AgentDB v2.0",
+        "latency": "< 100ms"
+      },
+      {
+        "name": "trend-agent",
+        "description": "Trending content from TMDB and FlixPatrol",
+        "sources": ["TMDB", "FlixPatrol"],
+        "latency": "< 200ms"
+      },
+      {
+        "name": "match-agent",
+        "description": "Scoring and ranking engine",
+        "model": "Claude Haiku",
+        "latency": "< 200ms"
+      },
+      {
+        "name": "present-agent",
+        "description": "Provenance and explanation generation",
+        "model": "Claude Sonnet",
+        "latency": "< 500ms"
+      },
+      {
+        "name": "orchestrator-agent",
+        "description": "Workflow coordination and error handling",
+        "model": "Claude Sonnet 4",
+        "latency": "< 500ms"
+      }
+    ],
+    "learning": {
+      "reasoningBank": "Pattern learning from user trajectories",
+      "reflexionMemory": "Self-critique and improvement (Phase 2)",
+      "causalRecall": "Utility-based search optimization (Phase 2)"
+    }
+  },
+  "rateLimit": {
+    "requests": 100,
+    "window": "1m",
+    "perUser": true
+  },
+  "authentication": {
+    "type": "api_key",
+    "header": "X-API-Key"
+  }
+}

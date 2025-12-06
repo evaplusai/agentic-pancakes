@@ -2,7 +2,7 @@
 
 **Generated**: 2025-12-06
 **Swarm ID**: swarm_1765036019529_vtvku0ki3
-**Total Research**: 8,242 lines across 6 documents
+**Total Research**: 13,309 lines across 10 documents
 
 ## Research Documents
 
@@ -14,6 +14,10 @@
 | 4 | [Agentic Swarm Patterns](./04_agentic_swarm_patterns.md) | 1,449 | 6-agent architecture, claude-flow |
 | 5 | [API Data Sources](./05_api_data_sources.md) | 1,996 | Watchmode, TMDB, FlixPatrol, Trakt |
 | 6 | [ARW Specification](./06_arw_specification.md) | 1,436 | Agent-Ready Web compliance |
+| 7 | [User Personas - Static](./07_user_personas_static.md) | 1,273 | Demographics, taste DNA, history |
+| 8 | [User Personas - Dynamic](./08_user_personas_dynamic.md) | 1,380 | Mood, context, intent states |
+| 9 | [User Style Vector Schema](./09_user_style_vector_schema.md) | 1,500 | 64-dimension vector design |
+| 10 | [User Persona Archetypes](./10_user_persona_archetypes.md) | 914 | 6 detailed persona profiles |
 
 ## Key Insights Summary
 
@@ -69,6 +73,46 @@ Present Agent (response + deeplink)
 - **With optimization**: $2.70/1K requests (85% savings)
 - **MVP API cost**: $0-1/month (TMDB + Trakt free tiers)
 
+## User Personas Summary
+
+### 6 TV5MONDE User Archetypes
+
+| Persona | Profile | Key Traits |
+|---------|---------|------------|
+| **Marie Dubois** | French Cinema Enthusiast | Native speaker, auteur cinema, high complexity |
+| **James Mitchell** | French Learner | B1-B2 level, subtitle-dependent, language goals |
+| **Sophie Renard** | Expat Nostalgia Seeker | Comfort viewing, cultural connection |
+| **Alexandre Fontaine** | Busy Professional | Time-constrained, mood-based, efficiency |
+| **Yuki Tanaka** | Francophile Explorer | Cultural explorer, pan-Francophone |
+| **Pierre Lefebvre** | Family Viewer | Multi-generational, weekend binger |
+
+### User Style Vector (64 Dimensions)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  STATIC (learned)          │  DYNAMIC (per-session)    │
+├─────────────────────────────────────────────────────────┤
+│  Genre Affinities [0-14]   │  Energy Level [57]        │
+│  Mood Preferences [15-24]  │  Emotional Goal [58]      │
+│  Pacing & Structure [25-32]│  Stress Level [59]        │
+│  Content Chars [33-40]     │  Social Context [60]      │
+│  French Specific [41-48]   │  Available Time [61]      │
+│  Context Patterns [49-56]  │  Comfort Need [62-63]     │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Recommendation Formula
+
+```javascript
+finalScore = (
+  baseMatch × 0.25 +      // Static taste DNA
+  moodScore × 0.30 +      // Current mood (HIGHEST)
+  intentScore × 0.20 +    // Viewing purpose
+  contextScore × 0.15 +   // Situation
+  trendingScore × 0.10    // What's hot
+) × constraintScore       // Hard filters (time, social)
+```
+
 ## Next Steps
 
 1. Read full research documents for implementation details
@@ -76,6 +120,8 @@ Present Agent (response + deeplink)
 3. Build 6-agent swarm with claude-flow
 4. Integrate RuVector for content matching
 5. Create ARW-compliant endpoints
+6. **Implement user persona system with 64D vectors**
+7. **Build mood detection from voice/text input**
 
 ## Source Materials
 

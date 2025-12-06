@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # Universal Content Discovery MVP Application
+  universal-content-discovery:
+    container_name: ucd-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: universal-content-discovery:latest
+    restart: unless-stopped
+
+    # Port mapping
+    ports:
+      - "3000:3000"
+
+    # Environment variables from .env file
+    env_file:
+      - .env
+
+    # Environment variable overrides
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+
+    # Volumes for persistent data
+    volumes:
+      - ./data:/app/data:ro           # Read-only catalog data
+      - ./logs:/app/logs              # Writable logs directory
+      - ./agentdb.db:/app/agentdb.db  # Vector database
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Network configuration
+    networks:
+      - ucd-network
+
+networks:
+  ucd-network:
+    driver: bridge

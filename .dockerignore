@@ -1,0 +1,77 @@
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# Testing
+tests/
+coverage/
+*.test.ts
+*.spec.ts
+jest.config.js
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Docker files (don't copy into image)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Logs (will be mounted as volume)
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Scripts (not needed in production)
+scripts/
+
+# TypeScript source (only built dist/ is needed)
+src/
+tsconfig.json
+
+# Linting and formatting
+.eslintrc*
+.prettierrc*
+.editorconfig
+
+# Other
+*.pid
+*.seed
+*.pid.lock
+.cache

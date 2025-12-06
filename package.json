@@ -20,7 +20,14 @@
     "vectorize": "tsx scripts/vectorize-catalog.ts",
     "import-trending": "tsx scripts/import-trending.ts",
     "nightly-learner": "tsx scripts/nightly-learner.ts",
-    "web": "tsx src/web/server.ts"
+    "web": "tsx src/web/server.ts",
+    "docker:build": "bash scripts/docker-build.sh",
+    "docker:run": "docker-compose up -d",
+    "docker:stop": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:restart": "docker-compose restart",
+    "docker:clean": "docker-compose down -v && docker system prune -f",
+    "docker:prod": "npm run docker:build && npm run docker:run"
   },
   "keywords": [
     "mcp",

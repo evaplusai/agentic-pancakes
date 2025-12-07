@@ -205,39 +205,54 @@ function calculateUtilityScore(
 
   // ========== USER PERSONALIZATION (ENHANCED FOR DIFFERENTIATION) ==========
   if (userPersonalization && userPersonalization.favoriteGenres.length > 0) {
-    // Genre preference boost - VERY STRONG impact for meaningful differentiation
-    const genreMatches = content.genres.filter(g =>
-      userPersonalization.favoriteGenres.some(fg =>
-        g.toLowerCase().includes(fg.toLowerCase()) ||
-        fg.toLowerCase().includes(g.toLowerCase())
-      )
+    // Genre preference boost - Use EXACT matching for core genres to avoid false positives
+    // e.g., "Comedy" should match "Comedy" but not "Action & Adventure" just because it has "Action"
+    const normalizeGenre = (g: string): string => {
+      // Extract the primary genre from compound genres like "Action & Adventure"
+      const primary = g.split(' & ')[0].split(',')[0].trim().toLowerCase();
+      // Map TMDB genre variants to standard names
+      const genreMap: Record<string, string> = {
+        'sci-fi & fantasy': 'sci-fi',
+        'action & adventure': 'action',
+        'war & politics': 'war',
+        'science fiction': 'sci-fi',
+      };
+      return genreMap[g.toLowerCase()] || primary;
+    };
+
+    const userGenresNormalized = userPersonalization.favoriteGenres.map(g => normalizeGenre(g));
+    const contentGenresNormalized = content.genres.map(g => normalizeGenre(g));
+
+    // Count EXACT genre matches (after normalization)
+    const genreMatches = contentGenresNormalized.filter(cg =>
+      userGenresNormalized.includes(cg)
     ).length;
 
-    // Strong boost: 0.35 per genre match, up to 1.05 for 3+ matches (INCREASED)
+    // STRONG differentiation: 0.4 per genre match, up to 1.2 for 3+ matches
     if (genreMatches > 0) {
-      score += 0.35 * Math.min(genreMatches, 3);
+      score += 0.4 * Math.min(genreMatches, 3);
     } else {
-      // Stronger penalty for NO genre match with user preferences
-      score -= 0.25;
+      // Heavy penalty for NO genre match - this is key for differentiation
+      score -= 0.4;
     }
 
-    // Primary mood alignment - INCREASED impact
+    // Primary mood alignment - user's preferred mood matters a lot
     if (content.mood === userPersonalization.primaryMood) {
+      score += 0.3;
+    } else {
+      score -= 0.2; // Penalty for mood mismatch
+    }
+
+    // Tone preference - boost content matching user's preferred tones
+    if (userPersonalization.primaryTones.includes(content.tone)) {
       score += 0.25;
     } else {
-      score -= 0.15; // Stronger penalty for mood mismatch
-    }
-
-    // Tone preference - INCREASED impact
-    if (userPersonalization.primaryTones.includes(content.tone)) {
-      score += 0.22;
-    } else {
-      score -= 0.08; // Small penalty for tone mismatch
+      score -= 0.1; // Small penalty for tone mismatch
     }
 
     // Penalize content user already watched
     if (userPersonalization.watchedContentIds.has(content.id)) {
-      score -= 0.7; // Very heavy penalty for exact match (INCREASED)
+      score -= 1.0; // Very heavy penalty - don't recommend watched content
     }
   } else {
     // No user personalization - reduce trending/popularity influence
@@ -262,7 +277,9 @@ function calculateUtilityScore(
     score *= 0.5; // Heavily penalize content we should avoid
   }
 
-  return Math.min(0.99, Math.max(0.3, score));
+  // Return raw score - normalization happens after sorting for display
+  // This preserves differentiation between high-scoring items
+  return Math.max(0.1, score);
 }
 
 // Helper to get day name
@@ -373,7 +390,8 @@ function formatContentForUI(
   const utilityScore = options.precomputedScore !== undefined
     ? options.precomputedScore
     : calculateUtilityScore(content, mood, tone, context, options.userPersonalization);
-  const matchScore = Math.round(utilityScore * 100);
+  // Normalize for display: cap at 99, floor at 30
+  const matchScore = Math.min(99, Math.max(30, Math.round(utilityScore * 50)));
 
   const result: Record<string, unknown> = {
     id: content.id,
@@ -384,7 +402,7 @@ function formatContentForUI(
     overview: content.overview,
     genres: content.genres,
     match: matchScore,
-    utilityScore: Math.round(utilityScore * 100),
+    utilityScore: matchScore, // Use same normalized score for consistency
     trending: content.isTrending,
     posterUrl: content.posterUrl,
     backdropUrl: content.backdropUrl,

@@ -31,8 +31,8 @@ export interface ContentCandidate {
     overview?: string;
     posterPath?: string;
     backdropPath?: string;
-    tv5Id?: string;
-    tv5Deeplink?: string;
+    streamingId?: string;
+    streamingUrl?: string;
   };
   vectorSimilarity: number;
   matchScore: number;
@@ -317,8 +317,8 @@ export class CatalogAgent {
         overview: content.overview,
         posterPath: content.posterUrl ?? undefined,
         backdropPath: content.backdropUrl ?? undefined,
-        tv5Id: content.tv5Id,
-        tv5Deeplink: content.tv5Deeplink
+        streamingId: content.streamingId,
+        streamingUrl: content.streamingUrl
       },
       vectorSimilarity: similarity,
       matchScore: 0,

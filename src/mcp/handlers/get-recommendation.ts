@@ -50,9 +50,9 @@ function contentToRecommendation(
       similarUsersCompleted: `${Math.floor(75 + Math.random() * 20)}% of similar users completed`,
       reasoning: `Matches your ${content.mood} mood with ${content.tone} tone perfectly`,
     },
-    deeplink: content.tv5Deeplink,
+    deeplink: content.streamingUrl || `https://www.themoviedb.org/movie/${content.id}`,
     availability: {
-      regions: ['FR', 'BE', 'CH', 'CA'],
+      regions: ['US', 'CA', 'UK', 'AU'],
     },
   };
 }

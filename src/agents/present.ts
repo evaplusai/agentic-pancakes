@@ -282,14 +282,14 @@ export class PresentAgent {
    * Generate deeplink to content
    */
   private generateDeeplink(candidate: ScoredCandidate): string {
-    // Use TV5MONDE deeplink if available
-    if (candidate.metadata.tv5Deeplink) {
-      return candidate.metadata.tv5Deeplink;
+    // Use streaming URL if available
+    if (candidate.metadata.streamingUrl) {
+      return candidate.metadata.streamingUrl;
     }
 
-    // Generate default TV5MONDE link
-    const contentId = candidate.metadata.tv5Id || candidate.metadata.contentId;
-    return `https://www.tv5monde.com/watch/${contentId}`;
+    // Generate default TMDB link
+    const contentId = candidate.metadata.streamingId || candidate.metadata.contentId;
+    return `https://www.themoviedb.org/movie/${contentId}`;
   }
 
   /**

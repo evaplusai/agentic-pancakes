@@ -26,9 +26,9 @@ export const ContentMetadataSchema = z.object({
   language: z.string().default('fr').describe('ISO 639-1 language code'),
   genres: z.array(z.string()).default([]),
 
-  // TV5MONDE specific
-  tv5Id: z.string().optional(),
-  tv5Deeplink: z.string().url().optional(),
+  // Streaming platform specific
+  streamingId: z.string().optional(),
+  streamingUrl: z.string().url().optional(),
 
   // TMDB metadata
   tmdbId: z.number().int().optional(),

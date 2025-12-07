@@ -318,8 +318,8 @@ export class AgentDBIntegration {
               posterUrl: content.posterUrl,
               mood: content.mood,
               tone: content.tone,
-              tv5Id: content.tv5Id,
-              tv5Deeplink: content.tv5Deeplink,
+              streamingId: content.streamingId,
+              streamingUrl: content.streamingUrl,
               isTrending: content.isTrending
             } : {},
             ...(includeProvenance && {
@@ -366,8 +366,8 @@ export class AgentDBIntegration {
           posterUrl: content.posterUrl,
           mood: content.mood,
           tone: content.tone,
-          tv5Id: content.tv5Id,
-          tv5Deeplink: content.tv5Deeplink,
+          streamingId: content.streamingId,
+          streamingUrl: content.streamingUrl,
           isTrending: content.isTrending
         } : {},
         ...(includeProvenance && {

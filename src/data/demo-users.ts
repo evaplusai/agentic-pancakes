@@ -2,7 +2,7 @@
  * Demo User Data
  *
  * Pre-populated demo user with realistic watch history for testing
- * the French content discovery app.
+ * the content discovery app with US/English content.
  *
  * @module data/demo-users
  */
@@ -17,7 +17,7 @@ const logger = createLogger('DemoUsers');
 // ============================================================================
 
 export const DEMO_USER_ID = 'demo-user';
-export const DEMO_USER_NAME = 'Marie';
+export const DEMO_USER_NAME = 'Alex';
 
 /**
  * Initialize demo users with realistic watch history
@@ -25,36 +25,36 @@ export const DEMO_USER_NAME = 'Marie';
 export function initializeDemoUsers(userService: UserService): void {
   logger.info('Initializing demo users');
 
-  // Create Marie's profile
-  const marie = userService.getOrCreateUser(DEMO_USER_ID, DEMO_USER_NAME);
-  logger.info('Created demo user profile', { userId: marie.userId, displayName: marie.displayName });
+  // Create Alex's profile
+  const alex = userService.getOrCreateUser(DEMO_USER_ID, DEMO_USER_NAME);
+  logger.info('Created demo user profile', { userId: alex.userId, displayName: alex.displayName });
 
   // ============================================================================
   // Watch History - Mix of completion rates and ratings
   // ============================================================================
 
-  // 1. Les Intouchables - Fully watched, loved it
-  userService.recordWatch(DEMO_USER_ID, 'fr-comedy-001', {
+  // 1. The Grand Budapest Hotel - Fully watched, loved it
+  userService.recordWatch(DEMO_USER_ID, 'comedy-001', {
     completionRate: 1.0,
     rating: 5,
     mood: 'unwind',
     tone: 'laugh',
     wasRecommended: false,
-    sessionDuration: 112
+    sessionDuration: 99
   });
 
-  // 2. Amélie - Fully watched, favorite film
-  userService.recordWatch(DEMO_USER_ID, 'fr-drama-001', {
+  // 2. The Shawshank Redemption - Fully watched, all-time favorite
+  userService.recordWatch(DEMO_USER_ID, 'drama-001', {
     completionRate: 1.0,
     rating: 5,
     mood: 'unwind',
     tone: 'feel',
     wasRecommended: false,
-    sessionDuration: 122
+    sessionDuration: 142
   });
 
-  // 3. Lupin (series) - Binge watched, highly engaged
-  userService.recordWatch(DEMO_USER_ID, 'fr-thriller-series-001', {
+  // 3. Breaking Bad (series) - Binge watched, highly engaged
+  userService.recordWatch(DEMO_USER_ID, 'thriller-series-001', {
     completionRate: 0.95,
     rating: 5,
     mood: 'engage',
@@ -63,94 +63,94 @@ export function initializeDemoUsers(userService: UserService): void {
     sessionDuration: 180
   });
 
-  // 4. Dix pour cent (Call My Agent!) - Currently watching
-  userService.recordWatch(DEMO_USER_ID, 'fr-comedy-series-001', {
+  // 4. The Office (series) - Currently watching
+  userService.recordWatch(DEMO_USER_ID, 'comedy-series-001', {
     completionRate: 0.6,
-    rating: 4,
+    rating: 5,
     mood: 'unwind',
     tone: 'laugh',
     wasRecommended: true,
     sessionDuration: 156
   });
 
-  // 5. Bienvenue chez les Ch'tis - Fully watched, enjoyed
-  userService.recordWatch(DEMO_USER_ID, 'fr-comedy-002', {
+  // 5. The Dark Knight - Fully watched, loved it
+  userService.recordWatch(DEMO_USER_ID, 'thriller-001', {
     completionRate: 1.0,
-    rating: 4,
-    mood: 'unwind',
-    tone: 'laugh',
+    rating: 5,
+    mood: 'engage',
+    tone: 'thrill',
     wasRecommended: false,
-    sessionDuration: 106
+    sessionDuration: 152
   });
 
-  // 6. Le Bureau des Légendes - Started but didn't finish yet
-  userService.recordWatch(DEMO_USER_ID, 'fr-think-series-001', {
-    completionRate: 0.3,
+  // 6. Black Mirror (series) - Started but didn't finish yet
+  userService.recordWatch(DEMO_USER_ID, 'think-series-001', {
+    completionRate: 0.4,
     rating: 4,
     mood: 'engage',
     tone: 'think',
     wasRecommended: true,
-    sessionDuration: 45
+    sessionDuration: 60
   });
 
-  // 7. Les Choristes - Watched partially, emotional but good
-  userService.recordWatch(DEMO_USER_ID, 'fr-drama-003', {
+  // 7. Ted Lasso - Watched, emotional but uplifting
+  userService.recordWatch(DEMO_USER_ID, 'drama-series-002', {
     completionRate: 0.85,
-    rating: 4,
+    rating: 5,
     mood: 'unwind',
     tone: 'feel',
     wasRecommended: false,
-    sessionDuration: 82
+    sessionDuration: 90
   });
 
-  // 8. Ne le dis à personne - Intense thriller, finished
-  userService.recordWatch(DEMO_USER_ID, 'fr-thriller-001', {
+  // 8. Inception - Mind-bending thriller, loved it
+  userService.recordWatch(DEMO_USER_ID, 'thriller-002', {
     completionRate: 1.0,
-    rating: 4,
+    rating: 5,
     mood: 'engage',
     tone: 'thrill',
     wasRecommended: true,
-    sessionDuration: 131
+    sessionDuration: 148
   });
 
-  // 9. OSS 117 - Fun spy comedy, watched fully
-  userService.recordWatch(DEMO_USER_ID, 'fr-comedy-005', {
+  // 9. Knives Out - Fun mystery comedy
+  userService.recordWatch(DEMO_USER_ID, 'comedy-005', {
     completionRate: 1.0,
     rating: 4,
     mood: 'unwind',
     tone: 'laugh',
     wasRecommended: false,
-    sessionDuration: 99
+    sessionDuration: 130
   });
 
-  // 10. Anatomie d'une chute - Recent watch, thought-provoking
-  userService.recordWatch(DEMO_USER_ID, 'fr-think-005', {
-    completionRate: 0.9,
+  // 10. Everything Everywhere All at Once - Recent watch, mind-blowing
+  userService.recordWatch(DEMO_USER_ID, 'think-005', {
+    completionRate: 1.0,
     rating: 5,
     mood: 'engage',
     tone: 'think',
     wasRecommended: true,
-    sessionDuration: 135
+    sessionDuration: 139
   });
 
   // ============================================================================
   // Watchlist - Mix of genres and moods
   // ============================================================================
 
-  userService.addToWatchlist(DEMO_USER_ID, 'fr-drama-002'); // La Vie en Rose
-  userService.addToWatchlist(DEMO_USER_ID, 'fr-thriller-002'); // La Haine
-  userService.addToWatchlist(DEMO_USER_ID, 'fr-think-001'); // Entre les murs
-  userService.addToWatchlist(DEMO_USER_ID, 'fr-comedy-004'); // Qu'est-ce qu'on a fait au Bon Dieu?
-  userService.addToWatchlist(DEMO_USER_ID, 'fr-thriller-series-002'); // Engrenages
+  userService.addToWatchlist(DEMO_USER_ID, 'drama-003'); // The Notebook
+  userService.addToWatchlist(DEMO_USER_ID, 'thriller-003'); // John Wick
+  userService.addToWatchlist(DEMO_USER_ID, 'think-002'); // Interstellar
+  userService.addToWatchlist(DEMO_USER_ID, 'comedy-003'); // The Hangover
+  userService.addToWatchlist(DEMO_USER_ID, 'thriller-series-003'); // The Last of Us
 
   // ============================================================================
   // Liked Content
   // ============================================================================
 
-  userService.likeContent(DEMO_USER_ID, 'fr-comedy-001'); // Les Intouchables
-  userService.likeContent(DEMO_USER_ID, 'fr-drama-001'); // Amélie
-  userService.likeContent(DEMO_USER_ID, 'fr-thriller-series-001'); // Lupin
-  userService.likeContent(DEMO_USER_ID, 'fr-think-005'); // Anatomie d'une chute
+  userService.likeContent(DEMO_USER_ID, 'comedy-001'); // The Grand Budapest Hotel
+  userService.likeContent(DEMO_USER_ID, 'drama-001'); // The Shawshank Redemption
+  userService.likeContent(DEMO_USER_ID, 'thriller-series-001'); // Breaking Bad
+  userService.likeContent(DEMO_USER_ID, 'think-005'); // Everything Everywhere All at Once
 
   // ============================================================================
   // Log Summary

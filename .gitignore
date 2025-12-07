@@ -162,6 +162,10 @@ data/metadata.db-shm
 data/metadata.db-wal
 data/cache/*
 !data/cache/.gitkeep
+data/users.json
+data/users.json.tmp
+data/content-database.json
+data/content-database.json.tmp
 
 
 # Removed Windows wrapper files per user request

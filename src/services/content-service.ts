@@ -2,12 +2,14 @@
  * Content Service
  *
  * Fetches and manages content from TMDB API.
- * Provides mood/tone classification and caching.
+ * Provides mood/tone classification and persistent caching to disk.
  *
  * @module services/content-service
  */
 
 import { createLogger } from '../utils/logger.js';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const logger = createLogger('ContentService');
 
@@ -36,6 +38,7 @@ export interface Content {
   valence: number;
   arousal: number;
   isTrending: boolean;
+  fetchedAt?: string;
 }
 
 interface TMDBMovie {
@@ -77,12 +80,26 @@ interface TMDBResponse<T> {
   total_results: number;
 }
 
+interface ContentDatabase {
+  version: number;
+  lastUpdated: string;
+  contentCount: number;
+  content: Record<string, Content>;
+  moodToneIndex: Record<string, string[]>; // "mood-tone" -> content ids
+  trendingIds: string[];
+}
+
 // ============================================================================
 // Constants
 // ============================================================================
 
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
+const DATA_DIR = process.env.DATA_DIR || './data';
+const CONTENT_DB_FILE = path.join(DATA_DIR, 'content-database.json');
+const DB_VERSION = 2;
+const CACHE_MAX_AGE_HOURS = 24; // Refresh from TMDB after 24 hours
+const PAGES_PER_CATEGORY = 5; // Fetch 5 pages per mood/tone combo (~100 items each)
 
 // Genre ID to name mapping
 const GENRE_MAP: Record<number, string> = {
@@ -128,13 +145,15 @@ const GENRE_MOOD_TONE: Record<string, { mood: 'unwind' | 'engage'; tone: 'laugh'
 
 export class ContentService {
   private apiKey: string;
-  private cache = new Map<string, { data: Content[]; timestamp: number }>();
-  private cacheTimeout = 15 * 60 * 1000; // 15 minutes
+  private memoryCache = new Map<string, { data: Content[]; timestamp: number }>();
+  private memoryCacheTimeout = 15 * 60 * 1000; // 15 minutes for memory cache
+  private database: ContentDatabase | null = null;
+  private initialized = false;
 
   constructor() {
     this.apiKey = process.env.TMDB_API_KEY || '';
     if (!this.apiKey) {
-      logger.warn('TMDB_API_KEY not set - content service will not work');
+      logger.warn('TMDB_API_KEY not set - content service will use cached data only');
     } else {
       logger.info('ContentService initialized with TMDB API');
     }
@@ -145,6 +164,256 @@ export class ContentService {
    */
   isConfigured(): boolean {
     return !!this.apiKey;
+  }
+
+  /**
+   * Initialize content database - load from disk or fetch fresh
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+
+    this.ensureDataDirectory();
+    this.loadDatabase();
+
+    // Check if we need to refresh data
+    const needsRefresh = this.shouldRefreshData();
+
+    if (needsRefresh && this.isConfigured()) {
+      logger.info('Content database needs refresh, fetching from TMDB...');
+      await this.refreshAllContent();
+    } else if (this.database) {
+      logger.info('Using cached content database', {
+        contentCount: this.database.contentCount,
+        lastUpdated: this.database.lastUpdated
+      });
+    }
+
+    this.initialized = true;
+  }
+
+  /**
+   * Ensure data directory exists
+   */
+  private ensureDataDirectory(): void {
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+        logger.info('Created data directory', { path: DATA_DIR });
+      }
+    } catch (error) {
+      logger.error('Failed to create data directory', error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Load database from disk
+   */
+  private loadDatabase(): void {
+    try {
+      if (fs.existsSync(CONTENT_DB_FILE)) {
+        const data = fs.readFileSync(CONTENT_DB_FILE, 'utf-8');
+        this.database = JSON.parse(data) as ContentDatabase;
+        logger.info('Loaded content database from disk', {
+          contentCount: this.database.contentCount,
+          version: this.database.version
+        });
+      } else {
+        logger.info('No existing content database found');
+        this.database = this.createEmptyDatabase();
+      }
+    } catch (error) {
+      logger.error('Failed to load content database', error instanceof Error ? error : new Error(String(error)));
+      this.database = this.createEmptyDatabase();
+    }
+  }
+
+  /**
+   * Create empty database structure
+   */
+  private createEmptyDatabase(): ContentDatabase {
+    return {
+      version: DB_VERSION,
+      lastUpdated: new Date().toISOString(),
+      contentCount: 0,
+      content: {},
+      moodToneIndex: {},
+      trendingIds: []
+    };
+  }
+
+  /**
+   * Check if data should be refreshed from TMDB
+   */
+  private shouldRefreshData(): boolean {
+    if (!this.database || this.database.contentCount === 0) return true;
+    if (this.database.version !== DB_VERSION) return true;
+
+    const lastUpdated = new Date(this.database.lastUpdated);
+    const hoursSinceUpdate = (Date.now() - lastUpdated.getTime()) / (1000 * 60 * 60);
+
+    return hoursSinceUpdate > CACHE_MAX_AGE_HOURS;
+  }
+
+  /**
+   * Save database to disk
+   */
+  private saveDatabase(): void {
+    if (!this.database) return;
+
+    try {
+      this.ensureDataDirectory();
+      const tempFile = `${CONTENT_DB_FILE}.tmp`;
+      fs.writeFileSync(tempFile, JSON.stringify(this.database, null, 2), 'utf-8');
+      fs.renameSync(tempFile, CONTENT_DB_FILE);
+      logger.debug('Saved content database to disk', { contentCount: this.database.contentCount });
+    } catch (error) {
+      logger.error('Failed to save content database', error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Refresh all content from TMDB API - BULK FETCH
+   */
+  async refreshAllContent(): Promise<void> {
+    if (!this.isConfigured()) {
+      logger.warn('Cannot refresh content - TMDB API not configured');
+      return;
+    }
+
+    logger.info('Starting bulk content refresh from TMDB...');
+
+    this.database = this.createEmptyDatabase();
+    const allContent: Content[] = [];
+
+    // Fetch trending content
+    try {
+      const trending = await this.fetchTrendingBulk();
+      trending.forEach(c => {
+        c.isTrending = true;
+        allContent.push(c);
+        this.database!.trendingIds.push(c.id);
+      });
+      logger.info('Fetched trending content', { count: trending.length });
+    } catch (error) {
+      logger.error('Failed to fetch trending', error instanceof Error ? error : new Error(String(error)));
+    }
+
+    // Fetch content for each mood/tone combination
+    const moodToneCombos: Array<{ mood: 'unwind' | 'engage'; tone: 'laugh' | 'feel' | 'thrill' | 'think' }> = [
+      { mood: 'unwind', tone: 'laugh' },
+      { mood: 'unwind', tone: 'feel' },
+      { mood: 'engage', tone: 'thrill' },
+      { mood: 'engage', tone: 'think' }
+    ];
+
+    for (const combo of moodToneCombos) {
+      try {
+        const content = await this.fetchByMoodToneBulk(combo.mood, combo.tone);
+        const key = `${combo.mood}-${combo.tone}`;
+        this.database!.moodToneIndex[key] = [];
+
+        content.forEach(c => {
+          if (!allContent.find(existing => existing.id === c.id)) {
+            allContent.push(c);
+          }
+          this.database!.moodToneIndex[key].push(c.id);
+        });
+
+        logger.info(`Fetched ${combo.mood}-${combo.tone} content`, { count: content.length });
+
+        // Small delay between categories to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 250));
+      } catch (error) {
+        logger.error(`Failed to fetch ${combo.mood}-${combo.tone}`, error instanceof Error ? error : new Error(String(error)));
+      }
+    }
+
+    // Store all content in database
+    const now = new Date().toISOString();
+    allContent.forEach(c => {
+      c.fetchedAt = now;
+      this.database!.content[c.id] = c;
+    });
+
+    this.database!.contentCount = Object.keys(this.database!.content).length;
+    this.database!.lastUpdated = now;
+
+    // Save to disk
+    this.saveDatabase();
+
+    logger.info('Content refresh complete', {
+      totalContent: this.database!.contentCount,
+      trendingCount: this.database!.trendingIds.length,
+      moodToneCategories: Object.keys(this.database!.moodToneIndex).length
+    });
+  }
+
+  /**
+   * Fetch trending content in bulk (multiple pages)
+   */
+  private async fetchTrendingBulk(): Promise<Content[]> {
+    const content: Content[] = [];
+
+    // Fetch 3 pages of movies and TV
+    for (let page = 1; page <= 3; page++) {
+      try {
+        const [movies, tv] = await Promise.all([
+          this.fetch<TMDBResponse<TMDBMovie>>('/trending/movie/week', { page: String(page) }),
+          this.fetch<TMDBResponse<TMDBTVShow>>('/trending/tv/week', { page: String(page) })
+        ]);
+
+        content.push(...movies.results.map(m => this.movieToContent(m, true)));
+        content.push(...tv.results.map(t => this.tvToContent(t, true)));
+      } catch (error) {
+        logger.warn(`Failed to fetch trending page ${page}`, error instanceof Error ? error : new Error(String(error)));
+      }
+    }
+
+    return content;
+  }
+
+  /**
+   * Fetch content by mood/tone in bulk (multiple pages)
+   */
+  private async fetchByMoodToneBulk(
+    mood: 'unwind' | 'engage',
+    tone: 'laugh' | 'feel' | 'thrill' | 'think'
+  ): Promise<Content[]> {
+    const genreIds = this.getMoodToneGenres(mood, tone);
+    const content: Content[] = [];
+
+    // Fetch multiple pages for more content variety
+    for (let page = 1; page <= PAGES_PER_CATEGORY; page++) {
+      try {
+        const voteThreshold = page <= 2 ? '50' : page <= 4 ? '30' : '20';
+
+        const [movies, tv] = await Promise.all([
+          this.fetch<TMDBResponse<TMDBMovie>>('/discover/movie', {
+            with_genres: genreIds.join(','),
+            sort_by: 'popularity.desc',
+            'vote_count.gte': voteThreshold,
+            page: String(page)
+          }),
+          this.fetch<TMDBResponse<TMDBTVShow>>('/discover/tv', {
+            with_genres: genreIds.join(','),
+            sort_by: 'popularity.desc',
+            'vote_count.gte': String(Math.max(10, parseInt(voteThreshold) - 20)),
+            page: String(page)
+          })
+        ]);
+
+        content.push(...movies.results.map(m => this.movieToContent(m)));
+        content.push(...tv.results.map(t => this.tvToContent(t)));
+
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (error) {
+        logger.warn(`Failed to fetch page ${page} for ${mood}-${tone}`, error instanceof Error ? error : new Error(String(error)));
+      }
+    }
+
+    // Filter to match exact mood/tone
+    return content.filter(c => c.mood === mood && c.tone === tone);
   }
 
   /**
@@ -279,32 +548,48 @@ export class ContentService {
   }
 
   /**
-   * Get cached or fresh data
+   * Map mood/tone to TMDB genre IDs
    */
-  private getCached(key: string): Content[] | null {
-    const cached = this.cache.get(key);
-    if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
-      return cached.data;
-    }
-    return null;
+  private getMoodToneGenres(mood: 'unwind' | 'engage', tone: 'laugh' | 'feel' | 'thrill' | 'think'): number[] {
+    const mapping: Record<string, number[]> = {
+      'unwind-laugh': [35, 16], // Comedy, Animation
+      'unwind-feel': [18, 10749, 10751, 10402], // Drama, Romance, Family, Music
+      'engage-thrill': [28, 53, 27, 80, 9648], // Action, Thriller, Horror, Crime, Mystery
+      'engage-think': [99, 878, 36, 14] // Documentary, Sci-Fi, History, Fantasy
+    };
+    return mapping[`${mood}-${tone}`] || [18]; // Default to drama
   }
 
-  /**
-   * Set cache
-   */
-  private setCache(key: string, data: Content[]): void {
-    this.cache.set(key, { data, timestamp: Date.now() });
-  }
+  // ============================================================================
+  // Public API Methods - Use database first, fallback to TMDB
+  // ============================================================================
 
   /**
    * Get trending content
    */
   async getTrending(limit = 20): Promise<Content[]> {
+    await this.initialize();
+
+    // Try database first
+    if (this.database && this.database.trendingIds.length > 0) {
+      const content = this.database.trendingIds
+        .slice(0, limit)
+        .map(id => this.database!.content[id])
+        .filter(Boolean);
+
+      if (content.length > 0) {
+        return content;
+      }
+    }
+
+    // Fallback to direct TMDB fetch
     if (!this.isConfigured()) return [];
 
     const cacheKey = `trending-${limit}`;
-    const cached = this.getCached(cacheKey);
-    if (cached) return cached;
+    const cached = this.memoryCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.memoryCacheTimeout) {
+      return cached.data;
+    }
 
     try {
       const [movies, tv] = await Promise.all([
@@ -317,11 +602,9 @@ export class ContentService {
         ...tv.results.slice(0, limit / 2).map(t => this.tvToContent(t, true))
       ];
 
-      // Sort by popularity
       content.sort((a, b) => b.popularity - a.popularity);
+      this.memoryCache.set(cacheKey, { data: content, timestamp: Date.now() });
 
-      this.setCache(cacheKey, content);
-      logger.info('Fetched trending content', { count: content.length });
       return content;
     } catch (error) {
       logger.error('Failed to fetch trending', error instanceof Error ? error : new Error(String(error)));
@@ -337,60 +620,98 @@ export class ContentService {
     tone: 'laugh' | 'feel' | 'thrill' | 'think',
     limit = 10
   ): Promise<Content[]> {
+    await this.initialize();
+
+    const key = `${mood}-${tone}`;
+
+    // Try database first
+    if (this.database && this.database.moodToneIndex[key]?.length > 0) {
+      const content = this.database.moodToneIndex[key]
+        .map(id => this.database!.content[id])
+        .filter(Boolean)
+        .filter(c => c.mood === mood && c.tone === tone)
+        .sort((a, b) => b.rating - a.rating);
+
+      if (content.length > 0) {
+        // Return more than requested limit for personalization variety
+        return content.slice(0, Math.max(limit, 80));
+      }
+    }
+
+    // Fallback to direct TMDB fetch
     if (!this.isConfigured()) return [];
 
     const cacheKey = `mood-${mood}-${tone}-${limit}`;
-    const cached = this.getCached(cacheKey);
-    if (cached) return cached;
+    const cached = this.memoryCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.memoryCacheTimeout) {
+      return cached.data;
+    }
 
-    // Map mood/tone to TMDB genre IDs
     const genreIds = this.getMoodToneGenres(mood, tone);
 
     try {
-      const [movies, tv] = await Promise.all([
+      // Fetch multiple pages
+      const [movies1, movies2, movies3, tv1, tv2, tv3] = await Promise.all([
         this.fetch<TMDBResponse<TMDBMovie>>('/discover/movie', {
           with_genres: genreIds.join(','),
           sort_by: 'popularity.desc',
-          'vote_count.gte': '100'
+          'vote_count.gte': '50',
+          page: '1'
+        }),
+        this.fetch<TMDBResponse<TMDBMovie>>('/discover/movie', {
+          with_genres: genreIds.join(','),
+          sort_by: 'popularity.desc',
+          'vote_count.gte': '50',
+          page: '2'
+        }),
+        this.fetch<TMDBResponse<TMDBMovie>>('/discover/movie', {
+          with_genres: genreIds.join(','),
+          sort_by: 'popularity.desc',
+          'vote_count.gte': '30',
+          page: '3'
         }),
         this.fetch<TMDBResponse<TMDBTVShow>>('/discover/tv', {
           with_genres: genreIds.join(','),
           sort_by: 'popularity.desc',
-          'vote_count.gte': '50'
+          'vote_count.gte': '30',
+          page: '1'
+        }),
+        this.fetch<TMDBResponse<TMDBTVShow>>('/discover/tv', {
+          with_genres: genreIds.join(','),
+          sort_by: 'popularity.desc',
+          'vote_count.gte': '30',
+          page: '2'
+        }),
+        this.fetch<TMDBResponse<TMDBTVShow>>('/discover/tv', {
+          with_genres: genreIds.join(','),
+          sort_by: 'popularity.desc',
+          'vote_count.gte': '20',
+          page: '3'
         })
       ]);
 
       const content: Content[] = [
-        ...movies.results.map(m => this.movieToContent(m)),
-        ...tv.results.map(t => this.tvToContent(t))
+        ...movies1.results.map(m => this.movieToContent(m)),
+        ...movies2.results.map(m => this.movieToContent(m)),
+        ...movies3.results.map(m => this.movieToContent(m)),
+        ...tv1.results.map(t => this.tvToContent(t)),
+        ...tv2.results.map(t => this.tvToContent(t)),
+        ...tv3.results.map(t => this.tvToContent(t))
       ];
 
-      // Filter to match exact mood/tone and sort by rating
       const filtered = content
         .filter(c => c.mood === mood && c.tone === tone)
         .sort((a, b) => b.rating - a.rating)
-        .slice(0, limit);
+        .slice(0, Math.max(limit, 60));
 
-      this.setCache(cacheKey, filtered);
+      this.memoryCache.set(cacheKey, { data: filtered, timestamp: Date.now() });
       logger.info('Fetched content by mood/tone', { mood, tone, count: filtered.length });
+
       return filtered;
     } catch (error) {
       logger.error('Failed to fetch by mood/tone', error instanceof Error ? error : new Error(String(error)));
       return [];
     }
-  }
-
-  /**
-   * Map mood/tone to TMDB genre IDs
-   */
-  private getMoodToneGenres(mood: 'unwind' | 'engage', tone: 'laugh' | 'feel' | 'thrill' | 'think'): number[] {
-    const mapping: Record<string, number[]> = {
-      'unwind-laugh': [35, 16], // Comedy, Animation
-      'unwind-feel': [18, 10749, 10751, 10402], // Drama, Romance, Family, Music
-      'engage-thrill': [28, 53, 27, 80, 9648], // Action, Thriller, Horror, Crime, Mystery
-      'engage-think': [99, 878, 36, 14] // Documentary, Sci-Fi, History, Fantasy
-    };
-    return mapping[`${mood}-${tone}`] || [18]; // Default to drama
   }
 
   /**
@@ -410,10 +731,7 @@ export class ContentService {
         ...tv.results.slice(0, limit).map(t => this.tvToContent(t))
       ];
 
-      // Sort by popularity
       content.sort((a, b) => b.popularity - a.popularity);
-
-      logger.info('Search completed', { query, count: content.length });
       return content.slice(0, limit);
     } catch (error) {
       logger.error('Search failed', error instanceof Error ? error : new Error(String(error)));
@@ -425,6 +743,14 @@ export class ContentService {
    * Get content by ID
    */
   async getById(id: string): Promise<Content | null> {
+    await this.initialize();
+
+    // Try database first
+    if (this.database?.content[id]) {
+      return this.database.content[id];
+    }
+
+    // Fallback to TMDB
     if (!this.isConfigured()) return null;
 
     const match = id.match(/^(movie|tv)-(\d+)$/);
@@ -469,6 +795,52 @@ export class ContentService {
       logger.error('Failed to fetch similar', error instanceof Error ? error : new Error(String(error)));
       return [];
     }
+  }
+
+  /**
+   * Get all content from database
+   */
+  async getAllContent(): Promise<Content[]> {
+    await this.initialize();
+    return this.database ? Object.values(this.database.content) : [];
+  }
+
+  /**
+   * Get database statistics
+   */
+  getStats(): {
+    totalContent: number;
+    trendingCount: number;
+    moodToneBreakdown: Record<string, number>;
+    lastUpdated: string | null;
+    databaseFile: string;
+    databaseExists: boolean;
+  } {
+    const moodToneBreakdown: Record<string, number> = {};
+    if (this.database?.moodToneIndex) {
+      for (const [key, ids] of Object.entries(this.database.moodToneIndex)) {
+        moodToneBreakdown[key] = ids.length;
+      }
+    }
+
+    return {
+      totalContent: this.database?.contentCount || 0,
+      trendingCount: this.database?.trendingIds.length || 0,
+      moodToneBreakdown,
+      lastUpdated: this.database?.lastUpdated || null,
+      databaseFile: CONTENT_DB_FILE,
+      databaseExists: fs.existsSync(CONTENT_DB_FILE)
+    };
+  }
+
+  /**
+   * Force refresh content from TMDB
+   */
+  async forceRefresh(): Promise<void> {
+    if (!this.isConfigured()) {
+      throw new Error('TMDB API not configured');
+    }
+    await this.refreshAllContent();
   }
 }
 

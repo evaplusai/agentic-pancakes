@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { getUserService } from '../services/user-service.js';
+import { getUserService, shutdownUserService } from '../services/user-service.js';
 import { RuVectorStore } from '../integrations/ruvector.js';
 import { getPersonalizationAgent } from '../agents/personalization.js';
 import { initializeDemoUsers, getDemoUserPersonas, getDemoUserPersona } from '../data/demo-users.js';
@@ -203,33 +203,46 @@ function calculateUtilityScore(
   const ratingBoost = content.rating ? (content.rating - 5) / 10 : 0;
   score += Math.max(0, ratingBoost * 0.1);
 
-  // ========== USER PERSONALIZATION ==========
-  if (userPersonalization) {
-    // Genre preference boost - significant impact
+  // ========== USER PERSONALIZATION (ENHANCED FOR DIFFERENTIATION) ==========
+  if (userPersonalization && userPersonalization.favoriteGenres.length > 0) {
+    // Genre preference boost - VERY STRONG impact for meaningful differentiation
     const genreMatches = content.genres.filter(g =>
       userPersonalization.favoriteGenres.some(fg =>
         g.toLowerCase().includes(fg.toLowerCase()) ||
         fg.toLowerCase().includes(g.toLowerCase())
       )
     ).length;
+
+    // Strong boost: 0.35 per genre match, up to 1.05 for 3+ matches (INCREASED)
     if (genreMatches > 0) {
-      score += 0.15 * Math.min(genreMatches, 3); // Up to 0.45 boost for genre match
+      score += 0.35 * Math.min(genreMatches, 3);
+    } else {
+      // Stronger penalty for NO genre match with user preferences
+      score -= 0.25;
     }
 
-    // Primary mood alignment - moderate impact
+    // Primary mood alignment - INCREASED impact
     if (content.mood === userPersonalization.primaryMood) {
-      score += 0.12;
+      score += 0.25;
+    } else {
+      score -= 0.15; // Stronger penalty for mood mismatch
     }
 
-    // Tone preference - moderate impact
+    // Tone preference - INCREASED impact
     if (userPersonalization.primaryTones.includes(content.tone)) {
-      score += 0.1;
+      score += 0.22;
+    } else {
+      score -= 0.08; // Small penalty for tone mismatch
     }
 
-    // Penalize content similar to what user already watched (by title similarity)
+    // Penalize content user already watched
     if (userPersonalization.watchedContentIds.has(content.id)) {
-      score -= 0.5; // Heavy penalty for exact match
+      score -= 0.7; // Very heavy penalty for exact match (INCREASED)
     }
+  } else {
+    // No user personalization - reduce trending/popularity influence
+    // to give equal chance to all matching content
+    score *= 0.9;
   }
 
   // Get pattern boost from ReasoningBank
@@ -339,6 +352,13 @@ function formatContentForUI(
     context?: UserContext;
     includeProvenance?: boolean;
     diversityType?: 'fast' | 'safe' | 'adventurous';
+    userPersonalization?: {
+      favoriteGenres: string[];
+      primaryMood: 'unwind' | 'engage';
+      primaryTones: string[];
+      watchedContentIds: Set<string>;
+    };
+    precomputedScore?: number; // Use pre-computed score from sorting
   } = {}
 ) {
   const mood = options.mood || 'unwind';
@@ -349,7 +369,10 @@ function formatContentForUI(
     social: 'alone' as const
   };
 
-  const utilityScore = calculateUtilityScore(content, mood, tone, context);
+  // Use pre-computed score if available, otherwise calculate
+  const utilityScore = options.precomputedScore !== undefined
+    ? options.precomputedScore
+    : calculateUtilityScore(content, mood, tone, context, options.userPersonalization);
   const matchScore = Math.round(utilityScore * 100);
 
   const result: Record<string, unknown> = {
@@ -521,7 +544,8 @@ app.post('/api/recommend', async (req, res): Promise<void> => {
     // 3. Adventurous - different genre/style
 
     const topPick = formatContentForUI(scoredContent[0].content, {
-      mood, tone, context, includeProvenance: true, diversityType: 'safe'
+      mood, tone, context, includeProvenance: true, diversityType: 'safe',
+      userPersonalization, precomputedScore: scoredContent[0].utility
     });
 
     // Track outcome
@@ -551,13 +575,15 @@ app.post('/api/recommend', async (req, res): Promise<void> => {
 
       if (quickWatch) {
         alternatives.push(formatContentForUI(quickWatch.content, {
-          mood, tone, context, includeProvenance: true, diversityType: 'fast'
+          mood, tone, context, includeProvenance: true, diversityType: 'fast',
+          userPersonalization, precomputedScore: quickWatch.utility
         }));
       }
 
       if (adventurous && adventurous.content.id !== quickWatch?.content.id) {
         alternatives.push(formatContentForUI(adventurous.content, {
-          mood, tone, context, includeProvenance: true, diversityType: 'adventurous'
+          mood, tone, context, includeProvenance: true, diversityType: 'adventurous',
+          userPersonalization, precomputedScore: adventurous.utility
         }));
       }
 
@@ -567,7 +593,8 @@ app.post('/api/recommend', async (req, res): Promise<void> => {
           const c = scoredContent[i];
           if (!alternatives.find(a => a.id === c.content.id)) {
             alternatives.push(formatContentForUI(c.content, {
-              mood, tone, context, includeProvenance: true
+              mood, tone, context, includeProvenance: true,
+              userPersonalization, precomputedScore: c.utility
             }));
           }
         }
@@ -613,6 +640,69 @@ app.get('/api/health', async (_req, res) => {
       inFallbackMode: selfHealing.isInFallbackMode(),
     },
   });
+});
+
+// Data statistics endpoint - shows content and user data status
+app.get('/api/data-stats', async (_req, res): Promise<void> => {
+  try {
+    const contentStats = contentService.getStats();
+    const userService = getUserService();
+    const persistenceStats = userService.getPersistenceStats();
+
+    res.json({
+      content: {
+        totalContent: contentStats.totalContent,
+        trendingCount: contentStats.trendingCount,
+        moodToneBreakdown: contentStats.moodToneBreakdown,
+        lastUpdated: contentStats.lastUpdated,
+        databaseFile: contentStats.databaseFile,
+        databaseExists: contentStats.databaseExists,
+        tmdbConfigured: contentService.isConfigured()
+      },
+      users: {
+        userCount: persistenceStats.userCount,
+        persistenceEnabled: persistenceStats.persistenceEnabled,
+        dataDir: persistenceStats.dataDir,
+        fileExists: persistenceStats.fileExists
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Force refresh content from TMDB (admin endpoint)
+app.post('/api/refresh-content', async (_req, res): Promise<void> => {
+  try {
+    if (!contentService.isConfigured()) {
+      res.status(503).json({
+        error: 'TMDB API not configured - cannot refresh content'
+      });
+      return;
+    }
+
+    // Force refresh content
+    await contentService.forceRefresh();
+
+    const stats = contentService.getStats();
+    res.json({
+      success: true,
+      message: 'Content database refreshed successfully',
+      stats: {
+        totalContent: stats.totalContent,
+        trendingCount: stats.trendingCount,
+        moodToneBreakdown: stats.moodToneBreakdown,
+        lastUpdated: stats.lastUpdated
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 // Trending content from TMDB
@@ -1621,6 +1711,8 @@ app.listen(PORT, async () => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully...');
+  // Flush user data to disk before exit
+  shutdownUserService();
   if (mcpClient) {
     await mcpClient.close();
   }
@@ -1629,6 +1721,8 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   console.log('\nSIGINT received, shutting down gracefully...');
+  // Flush user data to disk before exit
+  shutdownUserService();
   if (mcpClient) {
     await mcpClient.close();
   }

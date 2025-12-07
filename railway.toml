@@ -6,3 +6,8 @@ healthcheckPath = "/api/health"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
+
+# Persistent storage for user data
+[[mounts]]
+source = "user_data"
+destination = "/app/data"

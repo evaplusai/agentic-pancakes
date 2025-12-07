@@ -107,13 +107,13 @@ export class PersonalizationAgent {
         profile?.preferences.favoriteGenres.map(g => g.genre) || []
       );
 
-      // Combine factors
+      // Combine factors - INCREASED weights for better personalization differentiation
       const personalizedScore = Math.max(0, Math.min(1,
-        candidate.matchScore +
-        genreBoost * 0.15 +
-        historyPenalty +
-        preferenceAlignment * 0.1 +
-        noveltyBonus * 0.05
+        candidate.matchScore * 0.4 +           // Reduce base match score influence
+        genreBoost * 0.35 +                    // Increased from 0.15 - genre preferences matter more
+        historyPenalty +                       // Keep penalty as is
+        preferenceAlignment * 0.20 +           // Increased from 0.1 - mood/tone alignment
+        noveltyBonus * 0.05                    // Keep novelty bonus
       ));
 
       return {

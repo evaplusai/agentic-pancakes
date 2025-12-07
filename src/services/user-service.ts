@@ -2,7 +2,7 @@
  * User Service
  *
  * Manages user profiles, watch history, and preferences.
- * Provides in-memory storage with optional persistence.
+ * Provides JSON file persistence for data durability across restarts.
  *
  * @module services/user-service
  */
@@ -24,9 +24,18 @@ import {
   serializeUserProfile,
   deserializeUserProfile
 } from '../models/user-profile.js';
-// Content lookup is now optional - genres can be passed directly when recording watches/likes
+import * as fs from 'fs';
+import * as path from 'path';
 
 const logger = createLogger('UserService');
+
+// ============================================================================
+// Persistence Configuration
+// ============================================================================
+
+const DATA_DIR = process.env.DATA_DIR || './data';
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const SAVE_DEBOUNCE_MS = 1000; // Debounce saves to avoid excessive disk writes
 
 // ============================================================================
 // User Service Class
@@ -35,10 +44,143 @@ const logger = createLogger('UserService');
 export class UserService {
   private users = new Map<string, UserProfile>();
   private sessionToUser = new Map<string, string>(); // sessionId -> userId
+  private saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  private persistenceEnabled: boolean;
 
-  constructor() {
-    logger.info('UserService initialized');
+  constructor(enablePersistence = true) {
+    this.persistenceEnabled = enablePersistence;
+
+    if (this.persistenceEnabled) {
+      this.ensureDataDirectory();
+      this.loadFromFile();
+    }
+
+    logger.info('UserService initialized', {
+      persistenceEnabled: this.persistenceEnabled,
+      dataDir: DATA_DIR,
+      usersLoaded: this.users.size
+    });
   }
+
+  // ============================================================================
+  // Persistence Methods
+  // ============================================================================
+
+  /**
+   * Ensure data directory exists
+   */
+  private ensureDataDirectory(): void {
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+        logger.info('Created data directory', { path: DATA_DIR });
+      }
+    } catch (error) {
+      logger.error('Failed to create data directory', error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Load user profiles from JSON file
+   */
+  private loadFromFile(): void {
+    try {
+      if (fs.existsSync(USERS_FILE)) {
+        const data = fs.readFileSync(USERS_FILE, 'utf-8');
+        const parsed = JSON.parse(data);
+
+        // Validate and load each profile
+        let loadedCount = 0;
+        let errorCount = 0;
+
+        for (const [userId, profileData] of Object.entries(parsed)) {
+          try {
+            // Use deserialize to validate the profile structure
+            const profile = deserializeUserProfile(JSON.stringify(profileData));
+            this.users.set(userId, profile);
+            loadedCount++;
+          } catch (profileError) {
+            logger.warn(`Failed to load profile for user ${userId}`,
+              profileError instanceof Error ? profileError : new Error(String(profileError)));
+            errorCount++;
+          }
+        }
+
+        logger.info('Loaded user profiles from file', {
+          path: USERS_FILE,
+          loaded: loadedCount,
+          errors: errorCount
+        });
+      } else {
+        logger.info('No existing user data file found, starting fresh', { path: USERS_FILE });
+      }
+    } catch (error) {
+      logger.error('Failed to load user profiles from file',
+        error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Save user profiles to JSON file (debounced)
+   */
+  private scheduleSave(): void {
+    if (!this.persistenceEnabled) return;
+
+    // Clear existing timeout if any
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+    }
+
+    // Schedule save after debounce period
+    this.saveTimeout = setTimeout(() => {
+      this.saveToFile();
+    }, SAVE_DEBOUNCE_MS);
+  }
+
+  /**
+   * Immediately save user profiles to JSON file
+   */
+  private saveToFile(): void {
+    if (!this.persistenceEnabled) return;
+
+    try {
+      this.ensureDataDirectory();
+
+      // Convert Map to object for JSON serialization
+      const data: Record<string, UserProfile> = {};
+      for (const [userId, profile] of this.users.entries()) {
+        data[userId] = profile;
+      }
+
+      // Write atomically using temp file
+      const tempFile = `${USERS_FILE}.tmp`;
+      fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf-8');
+      fs.renameSync(tempFile, USERS_FILE);
+
+      logger.debug('Saved user profiles to file', {
+        path: USERS_FILE,
+        userCount: this.users.size
+      });
+    } catch (error) {
+      logger.error('Failed to save user profiles to file',
+        error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /**
+   * Force immediate save (useful before shutdown)
+   */
+  flushToFile(): void {
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+    }
+    this.saveToFile();
+  }
+
+  // ============================================================================
+  // User Management Methods
+  // ============================================================================
 
   /**
    * Get or create user profile
@@ -49,6 +191,7 @@ export class UserService {
     if (!profile) {
       profile = createUserProfile(userId, displayName);
       this.users.set(userId, profile);
+      this.scheduleSave();
       logger.info('Created new user profile', { userId });
     }
 
@@ -129,6 +272,7 @@ export class UserService {
     };
 
     this.users.set(userId, updatedProfile);
+    this.scheduleSave();
     logger.info('Recorded watch', {
       userId,
       contentId,
@@ -162,6 +306,7 @@ export class UserService {
 
       // Genre preferences are now updated when recordWatch is called with genres
       this.users.set(userId, updatedProfile);
+      this.scheduleSave();
       return updatedProfile;
     }
 
@@ -175,6 +320,7 @@ export class UserService {
     const profile = this.getOrCreateUser(userId);
     const updatedProfile = addToWatchlist(profile, contentId);
     this.users.set(userId, updatedProfile);
+    this.scheduleSave();
     logger.debug('Added to watchlist', { userId, contentId });
     return updatedProfile;
   }
@@ -186,6 +332,7 @@ export class UserService {
     const profile = this.getOrCreateUser(userId);
     const updatedProfile = removeFromWatchlist(profile, contentId);
     this.users.set(userId, updatedProfile);
+    this.scheduleSave();
     logger.debug('Removed from watchlist', { userId, contentId });
     return updatedProfile;
   }
@@ -203,6 +350,7 @@ export class UserService {
     }
 
     this.users.set(userId, updatedProfile);
+    this.scheduleSave();
     return updatedProfile;
   }
 
@@ -213,6 +361,7 @@ export class UserService {
     const profile = this.getOrCreateUser(userId);
     const updatedProfile = dislikeContent(profile, contentId);
     this.users.set(userId, updatedProfile);
+    this.scheduleSave();
     return updatedProfile;
   }
 
@@ -317,6 +466,7 @@ export class UserService {
   importProfile(data: string): UserProfile {
     const profile = deserializeUserProfile(data);
     this.users.set(profile.userId, profile);
+    this.scheduleSave();
     logger.info('Imported user profile', { userId: profile.userId });
     return profile;
   }
@@ -334,9 +484,29 @@ export class UserService {
   deleteUser(userId: string): boolean {
     const deleted = this.users.delete(userId);
     if (deleted) {
+      this.scheduleSave();
       logger.info('Deleted user profile', { userId });
     }
     return deleted;
+  }
+
+  /**
+   * Get persistence stats
+   */
+  getPersistenceStats(): {
+    persistenceEnabled: boolean;
+    dataDir: string;
+    usersFile: string;
+    userCount: number;
+    fileExists: boolean;
+  } {
+    return {
+      persistenceEnabled: this.persistenceEnabled,
+      dataDir: DATA_DIR,
+      usersFile: USERS_FILE,
+      userCount: this.users.size,
+      fileExists: fs.existsSync(USERS_FILE)
+    };
   }
 }
 
@@ -354,4 +524,14 @@ export function getUserService(): UserService {
     defaultUserService = new UserService();
   }
   return defaultUserService;
+}
+
+/**
+ * Shutdown user service (flush data to disk)
+ */
+export function shutdownUserService(): void {
+  if (defaultUserService) {
+    defaultUserService.flushToFile();
+    logger.info('UserService shutdown complete');
+  }
 }

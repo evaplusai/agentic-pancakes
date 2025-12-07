@@ -26,37 +26,14 @@ Join us to build agentic AI solutions that solve real problems using Google Clou
 
 Our **Aura Agent** solves the 45-minute decision problem with a conversational AI that understands your mood and preferences.
 
-### Step 1: Choose Your Mood
 <p align="center">
-  <img src="docs/ui-screen-final/00_screen.jpg" alt="Aura Agent - Mood Selection" width="400"/>
+  <img src="docs/ui-screen-final/00_screen.jpg" alt="Mood Selection" width="220"/>
+  <img src="docs/ui-screen-final/01_screen.jpg" alt="Tone & Result" width="220"/>
+  <img src="docs/ui-screen-final/02_screen.jpg" alt="Voice Search" width="220"/>
+  <img src="docs/ui-screen-final/03_screen.jpg" alt="Full Results" width="220"/>
 </p>
 
-> *"Hey! What are you in the mood for?"* - Choose between **Unwind** (relax), **Engage** (stimulate), or **Speak** (voice input).
-
-### Step 2: Select Your Vibe
-<p align="center">
-  <img src="docs/ui-screen-final/01_screen.jpg" alt="Aura Agent - Tone Selection and Result" width="400"/>
-</p>
-
-> After selecting "Unwind" → "Make me laugh", Aura recommends **Rick and Morty** with 95% match score, showing provenance data and AI reasoning.
-
-### Step 3: Voice Search
-<p align="center">
-  <img src="docs/ui-screen-final/02_screen.jpg" alt="Aura Agent - Voice Search" width="400"/>
-</p>
-
-> Use natural language: *"show me romantic comedy movie"* - Aura understands and finds **The Sound of Music** (99% match).
-
-### Step 4: Get Personalized Results
-<p align="center">
-  <img src="docs/ui-screen-final/03_screen.jpg" alt="Aura Agent - Full Results with Alternatives" width="400"/>
-</p>
-
-> Full recommendation with:
-> - **Safe Choice** - Top pick based on your preferences
-> - **Quick Watch** & **Try Something New** - Alternative suggestions
-> - **Watch** or **Save** actions
-> - Option to **Show me another** or **Surprise me**
+**Flow:** Mood → Tone → Voice/Text → Personalized Results with Alternatives
 
 ### Key Features
 - **5 Demo User Personas** - Alex (Explorer), Maya (Binge Watcher), Jake (Thrill Seeker), Sofia (Relaxer), Guest

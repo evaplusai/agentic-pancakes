@@ -24,7 +24,7 @@ import {
   serializeUserProfile,
   deserializeUserProfile
 } from '../models/user-profile.js';
-import { ALL_MOCK_CONTENT } from '../data/mock-content.js';
+// Content lookup is now optional - genres can be passed directly when recording watches/likes
 
 const logger = createLogger('UserService');
 
@@ -86,6 +86,8 @@ export class UserService {
     options: {
       completionRate: number;
       rating?: number;
+      title?: string;
+      genres?: string[];
       mood?: 'unwind' | 'engage';
       tone?: 'laugh' | 'feel' | 'thrill' | 'think';
       wasRecommended?: boolean;
@@ -93,31 +95,25 @@ export class UserService {
     }
   ): UserProfile {
     const profile = this.getOrCreateUser(userId);
-    const content = ALL_MOCK_CONTENT.find(c => c.id === contentId);
-
-    if (!content) {
-      logger.warn('Content not found for watch record', { contentId });
-      return profile;
-    }
 
     const entry: Omit<WatchHistoryEntry, 'watchedAt'> = {
       contentId,
-      title: content.title,
+      title: options.title || contentId,
       completionRate: options.completionRate,
       rating: options.rating,
-      mood: options.mood || content.mood,
-      tone: options.tone || content.tone,
+      mood: options.mood || 'unwind',
+      tone: options.tone || 'feel',
       wasRecommended: options.wasRecommended || false,
       sessionDuration: options.sessionDuration
     };
 
     let updatedProfile = addWatchHistoryEntry(profile, entry);
 
-    // Update genre preferences if good completion
-    if (options.completionRate > 0.5) {
+    // Update genre preferences if good completion and genres provided
+    if (options.completionRate > 0.5 && options.genres && options.genres.length > 0) {
       updatedProfile = updateGenrePreferences(
         updatedProfile,
-        content.genres,
+        options.genres,
         options.rating
       );
     }
@@ -164,14 +160,7 @@ export class UserService {
         watchHistory: updatedHistory
       };
 
-      // Update genre preferences with the new rating
-      const content = ALL_MOCK_CONTENT.find(c => c.id === contentId);
-      if (content) {
-        const finalProfile = updateGenrePreferences(updatedProfile, content.genres, rating);
-        this.users.set(userId, finalProfile);
-        return finalProfile;
-      }
-
+      // Genre preferences are now updated when recordWatch is called with genres
       this.users.set(userId, updatedProfile);
       return updatedProfile;
     }
@@ -204,16 +193,13 @@ export class UserService {
   /**
    * Like content
    */
-  likeContent(userId: string, contentId: string): UserProfile {
+  likeContent(userId: string, contentId: string, genres?: string[]): UserProfile {
     const profile = this.getOrCreateUser(userId);
-    const updatedProfile = likeContent(profile, contentId);
+    let updatedProfile = likeContent(profile, contentId);
 
-    // Also update genre preferences
-    const content = ALL_MOCK_CONTENT.find(c => c.id === contentId);
-    if (content) {
-      const finalProfile = updateGenrePreferences(updatedProfile, content.genres);
-      this.users.set(userId, finalProfile);
-      return finalProfile;
+    // Update genre preferences if genres provided
+    if (genres && genres.length > 0) {
+      updatedProfile = updateGenrePreferences(updatedProfile, genres);
     }
 
     this.users.set(userId, updatedProfile);

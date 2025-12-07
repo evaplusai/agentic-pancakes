@@ -1,9 +1,9 @@
-# Dependencies
+# Dependencies - node_modules excluded but lock files needed for npm ci
 node_modules/
 npm-debug.log
 yarn-error.log
-package-lock.json
 yarn.lock
+# Note: package-lock.json is REQUIRED for npm ci
 
 # Build outputs
 dist/
@@ -61,9 +61,8 @@ temp/
 # Scripts (not needed in production)
 scripts/
 
-# TypeScript source (only built dist/ is needed)
-src/
-tsconfig.json
+# Note: src/ and tsconfig.json are REQUIRED for the builder stage
+# They were previously ignored but are needed for multi-stage Docker builds
 
 # Linting and formatting
 .eslintrc*

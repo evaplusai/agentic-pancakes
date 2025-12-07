@@ -3,6 +3,7 @@
  *
  * Applies user preferences and history to adjust recommendation scores.
  * Works with the Match Agent to provide personalized content rankings.
+ * Now uses TMDB via ContentService for real content.
  *
  * @module agents/personalization
  */
@@ -10,10 +11,26 @@
 import { createLogger } from '../utils/logger.js';
 import { getUserService, UserService } from '../services/user-service.js';
 import type { ContentCandidate } from './catalog.js';
-import type { MockContent } from '../data/mock-content.js';
-import { ALL_MOCK_CONTENT } from '../data/mock-content.js';
+import { getContentService, type Content } from '../services/content-service.js';
 
 const logger = createLogger('PersonalizationAgent');
+
+// Content cache for personalization lookups
+let contentCache: Content[] = [];
+let cacheTimestamp = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function getContentCache(): Promise<Content[]> {
+  const now = Date.now();
+  if (contentCache.length === 0 || now - cacheTimestamp > CACHE_TTL) {
+    const service = getContentService();
+    if (service.isConfigured()) {
+      contentCache = await service.getTrending(40);
+      cacheTimestamp = now;
+    }
+  }
+  return contentCache;
+}
 
 // ============================================================================
 // Types
@@ -65,7 +82,7 @@ export class PersonalizationAgent {
     const profile = this.userService.getUser(context.userId);
 
     return candidates.map(candidate => {
-      const content = ALL_MOCK_CONTENT.find(c => c.id === candidate.metadata.contentId);
+      const content = contentCache.find(c => c.id === candidate.metadata.contentId);
 
       // Calculate personalization factors
       const genreBoost = this.calculateGenreBoost(
@@ -139,7 +156,7 @@ export class PersonalizationAgent {
    * Calculate mood/tone preference alignment
    */
   private calculatePreferenceAlignment(
-    content: MockContent | undefined,
+    content: Content | undefined,
     moodWeight: { unwind: number; engage: number },
     toneWeight: { laugh: number; feel: number; thrill: number; think: number },
     context: PersonalizationContext
@@ -178,7 +195,7 @@ export class PersonalizationAgent {
   /**
    * Get personalized recommendations for "Continue Watching"
    */
-  getContinueWatching(userId: string, limit = 5): MockContent[] {
+  getContinueWatching(userId: string, limit = 5): Content[] {
     const profile = this.userService.getUser(userId);
     if (!profile) return [];
 
@@ -188,18 +205,18 @@ export class PersonalizationAgent {
       .slice(0, limit);
 
     return incomplete
-      .map(entry => ALL_MOCK_CONTENT.find(c => c.id === entry.contentId))
-      .filter((c): c is MockContent => c !== undefined);
+      .map(entry => contentCache.find(c => c.id === entry.contentId))
+      .filter((c): c is Content => c !== undefined);
   }
 
   /**
    * Get "Because You Watched" recommendations
    */
-  getBecauseYouWatched(userId: string, limit = 5): { source: MockContent; recommendations: MockContent[] }[] {
+  getBecauseYouWatched(userId: string, limit = 5): { source: Content; recommendations: Content[] }[] {
     const profile = this.userService.getUser(userId);
     if (!profile) return [];
 
-    const results: { source: MockContent; recommendations: MockContent[] }[] = [];
+    const results: { source: Content; recommendations: Content[] }[] = [];
 
     // Get highly rated watched content
     const highlyRated = profile.watchHistory
@@ -207,7 +224,7 @@ export class PersonalizationAgent {
       .slice(0, 3);
 
     for (const entry of highlyRated) {
-      const source = ALL_MOCK_CONTENT.find(c => c.id === entry.contentId);
+      const source = contentCache.find(c => c.id === entry.contentId);
       if (!source) continue;
 
       // Find similar content
@@ -225,10 +242,10 @@ export class PersonalizationAgent {
   /**
    * Find similar content based on mood, tone, and genres
    */
-  private findSimilarContent(source: MockContent, excludeIds: string[]): MockContent[] {
+  private findSimilarContent(source: Content, excludeIds: string[]): Content[] {
     const excludeSet = new Set(excludeIds);
 
-    return ALL_MOCK_CONTENT
+    return contentCache
       .filter(c => !excludeSet.has(c.id))
       .map(content => ({
         content,
@@ -242,7 +259,7 @@ export class PersonalizationAgent {
   /**
    * Calculate similarity between two content items
    */
-  private calculateContentSimilarity(a: MockContent, b: MockContent): number {
+  private calculateContentSimilarity(a: Content, b: Content): number {
     let score = 0;
 
     // Same mood
@@ -261,21 +278,21 @@ export class PersonalizationAgent {
   /**
    * Get content from user's watchlist
    */
-  getWatchlistContent(userId: string): MockContent[] {
+  getWatchlistContent(userId: string): Content[] {
     const profile = this.userService.getUser(userId);
     if (!profile) return [];
 
     return profile.watchlist
-      .map(id => ALL_MOCK_CONTENT.find(c => c.id === id))
-      .filter((c): c is MockContent => c !== undefined);
+      .map(id => contentCache.find(c => c.id === id))
+      .filter((c): c is Content => c !== undefined);
   }
 
   /**
    * Get trending content personalized to user
    */
-  getTrendingForUser(userId: string, limit = 10): MockContent[] {
+  getTrendingForUser(userId: string, limit = 10): Content[] {
     const profile = this.userService.getUser(userId);
-    const trending = ALL_MOCK_CONTENT.filter(c => c.isTrending);
+    const trending = contentCache.filter(c => c.isTrending);
 
     if (!profile) {
       return trending.slice(0, limit);
@@ -295,6 +312,14 @@ export class PersonalizationAgent {
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
       .map(item => item.content);
+  }
+
+  /**
+   * Initialize the content cache (call at startup)
+   */
+  async initializeCache(): Promise<void> {
+    await getContentCache();
+    logger.info('Personalization content cache initialized', { count: contentCache.length });
   }
 }
 

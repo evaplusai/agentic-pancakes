@@ -3,13 +3,14 @@
  *
  * High-performance vector database integration using ruvector package.
  * Provides content embeddings and semantic search capabilities.
+ * Now uses TMDB via ContentService for real content.
  *
  * @module integrations/ruvector
  */
 
 import { VectorDB } from 'ruvector';
 import { createLogger } from '../utils/logger.js';
-import { ALL_MOCK_CONTENT, type MockContent } from '../data/mock-content.js';
+import { getContentService, type Content } from '../services/content-service.js';
 
 const logger = createLogger('RuVector');
 
@@ -107,7 +108,7 @@ function hashString(str: string): number {
  * Create content embedding from metadata
  * Combines title, overview, genres, mood, and tone
  */
-export function createContentEmbedding(content: MockContent, dimensions = 128): Float32Array {
+export function createContentEmbedding(content: Content, dimensions = 128): Float32Array {
   // Build rich text representation
   const textParts = [
     content.title,
@@ -160,7 +161,7 @@ export class RuVectorStore {
   private db: InstanceType<typeof VectorDB>;
   private config: RuVectorConfig;
   private initialized = false;
-  private contentMap = new Map<string, MockContent>();
+  private contentMap = new Map<string, Content>();
 
   constructor(config: RuVectorConfig = { dimensions: 256 }) {
     this.config = {
@@ -172,7 +173,7 @@ export class RuVectorStore {
   }
 
   /**
-   * Initialize and index all content
+   * Initialize and index content from TMDB
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
@@ -180,42 +181,84 @@ export class RuVectorStore {
       return;
     }
 
-    logger.info('Initializing RuVectorStore...');
+    logger.info('Initializing RuVectorStore with TMDB content...');
     const startTime = Date.now();
 
-    // Index all mock content
-    for (const content of ALL_MOCK_CONTENT) {
-      try {
-        const vector = createContentEmbedding(content, this.config.dimensions);
+    const contentService = getContentService();
 
-        await this.db.insert({
-          id: content.id,
-          vector,
-          metadata: {
-            title: content.title,
-            mood: content.mood,
-            tone: content.tone,
-            genres: content.genres,
-            year: content.year,
-            overview: content.overview,
-            isTrending: content.isTrending
-          }
-        });
-
-        this.contentMap.set(content.id, content);
-      } catch (error) {
-        logger.warn(`Failed to index content ${content.id}`,
-          error instanceof Error ? error : new Error(String(error)));
-      }
+    if (!contentService.isConfigured()) {
+      logger.warn('TMDB API not configured, vector store will be empty');
+      this.initialized = true;
+      return;
     }
 
-    const count = await this.db.len();
-    this.initialized = true;
+    try {
+      // Fetch trending content from TMDB to index (increased from 40 to 60)
+      const trendingContent = await contentService.getTrending(60);
 
-    logger.info('RuVectorStore initialized', {
-      contentCount: count,
-      duration: Date.now() - startTime
-    });
+      // Also fetch discover content for each mood/tone combination for more variety
+      const moods: Array<'unwind' | 'engage'> = ['unwind', 'engage'];
+      const tones: Array<'laugh' | 'feel' | 'thrill' | 'think'> = ['laugh', 'feel', 'thrill', 'think'];
+
+      const discoverPromises = moods.flatMap(mood =>
+        tones.map(tone => contentService.getByMoodTone(mood, tone, 15))
+      );
+
+      const discoverResults = await Promise.all(discoverPromises);
+      const discoverContent = discoverResults.flat();
+
+      // Combine all content, avoiding duplicates
+      const allContent = [...trendingContent];
+      const seenIds = new Set(trendingContent.map(c => c.id));
+
+      for (const content of discoverContent) {
+        if (!seenIds.has(content.id)) {
+          allContent.push(content);
+          seenIds.add(content.id);
+        }
+      }
+
+      logger.info(`Indexing ${allContent.length} pieces of content (${trendingContent.length} trending + ${allContent.length - trendingContent.length} discovered)`);
+
+      for (const content of allContent) {
+        try {
+          const vector = createContentEmbedding(content, this.config.dimensions);
+
+          await this.db.insert({
+            id: content.id,
+            vector,
+            metadata: {
+              title: content.title,
+              mood: content.mood,
+              tone: content.tone,
+              genres: content.genres,
+              year: content.year,
+              overview: content.overview,
+              isTrending: content.isTrending
+            }
+          });
+
+          this.contentMap.set(content.id, content);
+        } catch (error) {
+          logger.warn(`Failed to index content ${content.id}`,
+            error instanceof Error ? error : new Error(String(error)));
+        }
+      }
+
+      const count = await this.db.len();
+      this.initialized = true;
+
+      logger.info('RuVectorStore initialized with TMDB content', {
+        contentCount: count,
+        trendingCount: trendingContent.length,
+        discoveredCount: allContent.length - trendingContent.length,
+        duration: Date.now() - startTime
+      });
+    } catch (error) {
+      logger.error('Failed to initialize RuVectorStore',
+        error instanceof Error ? error : new Error(String(error)));
+      this.initialized = true; // Mark as initialized even on error
+    }
   }
 
   /**
@@ -229,7 +272,7 @@ export class RuVectorStore {
       additionalQuery?: string;
       excludeIds?: string[];
     } = {}
-  ): Promise<Array<{ content: MockContent; score: number }>> {
+  ): Promise<Array<{ content: Content; score: number }>> {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -259,7 +302,7 @@ export class RuVectorStore {
         content: this.contentMap.get(r.id)!,
         score: r.score
       }))
-      .filter((r: { content: MockContent | undefined; score: number }) => r.content !== undefined);
+      .filter((r: { content: Content | undefined; score: number }) => r.content !== undefined);
   }
 
   /**
@@ -268,7 +311,7 @@ export class RuVectorStore {
   async findSimilar(
     contentId: string,
     options: { limit?: number; excludeIds?: string[] } = {}
-  ): Promise<Array<{ content: MockContent; score: number }>> {
+  ): Promise<Array<{ content: Content; score: number }>> {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -296,7 +339,7 @@ export class RuVectorStore {
         content: this.contentMap.get(r.id)!,
         score: r.score
       }))
-      .filter((r: { content: MockContent | undefined; score: number }) => r.content !== undefined);
+      .filter((r: { content: Content | undefined; score: number }) => r.content !== undefined);
   }
 
   /**
@@ -305,7 +348,7 @@ export class RuVectorStore {
   async searchByText(
     query: string,
     options: { limit?: number; excludeIds?: string[] } = {}
-  ): Promise<Array<{ content: MockContent; score: number }>> {
+  ): Promise<Array<{ content: Content; score: number }>> {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -327,13 +370,13 @@ export class RuVectorStore {
         content: this.contentMap.get(r.id)!,
         score: r.score
       }))
-      .filter((r: { content: MockContent | undefined; score: number }) => r.content !== undefined);
+      .filter((r: { content: Content | undefined; score: number }) => r.content !== undefined);
   }
 
   /**
    * Add new content to the index
    */
-  async addContent(content: MockContent): Promise<void> {
+  async addContent(content: Content): Promise<void> {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -377,7 +420,7 @@ export class RuVectorStore {
   /**
    * Get content by ID
    */
-  getContent(id: string): MockContent | undefined {
+  getContent(id: string): Content | undefined {
     return this.contentMap.get(id);
   }
 }

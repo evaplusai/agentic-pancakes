@@ -3,6 +3,7 @@
  *
  * Integration with AgentDB v2.0 for vector search, ReasoningBank, and learning.
  * Uses HNSWIndex for fast vector search and EmbeddingService for embeddings.
+ * Now uses TMDB via ContentService for real content.
  *
  * @module integrations/agentdb
  */
@@ -13,9 +14,26 @@ import { VectorSearchError } from '../utils/error-handler.js';
 import type { ContentVector } from '../models/content-vector.js';
 import type { UserStyleVector } from '../models/user-vector.js';
 import type { Trajectory } from '../models/trajectory.js';
-import { ALL_MOCK_CONTENT, type MockContent } from '../data/mock-content.js';
+import { getContentService, type Content } from '../services/content-service.js';
 
 const logger = createLogger('AgentDB');
+
+// Content cache for AgentDB operations
+let contentCache: Content[] = [];
+let cacheTimestamp = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function getContentCache(): Promise<Content[]> {
+  const now = Date.now();
+  if (contentCache.length === 0 || now - cacheTimestamp > CACHE_TTL) {
+    const service = getContentService();
+    if (service.isConfigured()) {
+      contentCache = await service.getTrending(40);
+      cacheTimestamp = now;
+    }
+  }
+  return contentCache;
+}
 
 // ============================================================================
 // Types
@@ -160,12 +178,14 @@ export class AgentDBIntegration {
   }
 
   /**
-   * Index mock content with embeddings
+   * Index content from TMDB with embeddings
    */
   private async indexMockContent(): Promise<void> {
-    logger.info('Indexing mock content...');
+    logger.info('Indexing TMDB content...');
 
-    for (const content of ALL_MOCK_CONTENT) {
+    const allContent = await getContentCache();
+
+    for (const content of allContent) {
       try {
         let vector: Float32Array;
 
@@ -214,7 +234,9 @@ export class AgentDBIntegration {
   private async indexMockContentFallback(): Promise<void> {
     logger.info('Using fallback content indexing (brute force)');
 
-    for (const content of ALL_MOCK_CONTENT) {
+    const allContent = await getContentCache();
+
+    for (const content of allContent) {
       const vector = this.createPseudoEmbedding(content);
       this.contentEmbeddings.set(content.id, vector);
     }
@@ -227,7 +249,7 @@ export class AgentDBIntegration {
   /**
    * Create pseudo-embedding from content features
    */
-  private createPseudoEmbedding(content: MockContent): Float32Array {
+  private createPseudoEmbedding(content: Content): Float32Array {
     const vector = new Float32Array(this.config.vectorDimensions);
 
     // Encode mood/tone in first dimensions
@@ -298,10 +320,11 @@ export class AgentDBIntegration {
       // Try HNSW search first
       if (this.hnswIndex && this.contentEmbeddings.size > 0) {
         const results = await this.hnswIndex.search(query, Math.min(limit, this.contentEmbeddings.size));
+        const allContent = await getContentCache();
 
         return results.map((result: { id: number; distance: number }) => {
           const contentId = this.indexToId.get(result.id) || '';
-          const content = ALL_MOCK_CONTENT.find(c => c.id === contentId);
+          const content = allContent.find(c => c.id === contentId);
           const distance = result.distance;
 
           return {
@@ -318,8 +341,6 @@ export class AgentDBIntegration {
               posterUrl: content.posterUrl,
               mood: content.mood,
               tone: content.tone,
-              streamingId: content.streamingId,
-              streamingUrl: content.streamingUrl,
               isTrending: content.isTrending
             } : {},
             ...(includeProvenance && {
@@ -334,23 +355,24 @@ export class AgentDBIntegration {
       }
 
       // Fallback: brute force cosine similarity
-      return this.fallbackSearch(query, limit, includeProvenance);
+      return await this.fallbackSearch(query, limit, includeProvenance);
     } catch (error) {
       logger.warn('HNSW search failed, falling back to brute force',
         error instanceof Error ? error : new Error(String(error)));
-      return this.fallbackSearch(query, limit, includeProvenance);
+      return await this.fallbackSearch(query, limit, includeProvenance);
     }
   }
 
   /**
    * Fallback brute force search
    */
-  private fallbackSearch(query: Float32Array, limit: number, includeProvenance: boolean): SearchResult[] {
+  private async fallbackSearch(query: Float32Array, limit: number, includeProvenance: boolean): Promise<SearchResult[]> {
     const results: SearchResult[] = [];
+    const allContent = await getContentCache();
 
     for (const [id, vector] of this.contentEmbeddings.entries()) {
       const similarity = this.cosineSimilarity(query, vector);
-      const content = ALL_MOCK_CONTENT.find(c => c.id === id);
+      const content = allContent.find(c => c.id === id);
 
       results.push({
         id,
@@ -366,8 +388,6 @@ export class AgentDBIntegration {
           posterUrl: content.posterUrl,
           mood: content.mood,
           tone: content.tone,
-          streamingId: content.streamingId,
-          streamingUrl: content.streamingUrl,
           isTrending: content.isTrending
         } : {},
         ...(includeProvenance && {

@@ -1,13 +1,18 @@
 # Multi-stage build for Universal Content Discovery MVP
 # Production-ready Docker image for hackathon demo deployment
+# Using debian-based images for glibc compatibility (required by ruvector native module)
 
 # ============================================
 # Stage 1: Builder - Build TypeScript application
 # ============================================
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 
 # Install build dependencies
-RUN apk add --no-cache python3 make g++
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
@@ -29,14 +34,19 @@ RUN npm run build
 # ============================================
 # Stage 2: Production - Minimal runtime image
 # ============================================
-FROM node:20-alpine
+FROM node:20-slim
 
-# Install runtime dependencies for better-sqlite3
-RUN apk add --no-cache sqlite
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create app user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+RUN groupadd -g 1001 nodejs && \
+    useradd -u 1001 -g nodejs -s /bin/bash -m nodejs
 
 # Set working directory
 WORKDIR /app
@@ -44,7 +54,7 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install ONLY production dependencies
+# Install ONLY production dependencies (with build tools available)
 ENV NODE_ENV=production
 RUN npm ci --omit=dev && npm cache clean --force
 

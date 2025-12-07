@@ -3,6 +3,7 @@
  *
  * Performs vector similarity search against the content catalog.
  * Uses AgentDB HNSW indexing for fast approximate nearest neighbor search.
+ * Now uses TMDB via ContentService for real content.
  *
  * @module agents/catalog
  */
@@ -11,11 +12,36 @@ import {
   UniversalEmotionalState,
   Constraints
 } from '../models/index.js';
-import {
-  ALL_MOCK_CONTENT,
-  getContentByMoodTone,
-  MockContent
-} from '../data/mock-content.js';
+import { getContentService, type Content } from '../services/content-service.js';
+
+// Content cache for catalog operations
+let contentCache: Content[] = [];
+let cacheTimestamp = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function getContentCache(): Promise<Content[]> {
+  const now = Date.now();
+  if (contentCache.length === 0 || now - cacheTimestamp > CACHE_TTL) {
+    const service = getContentService();
+    if (service.isConfigured()) {
+      contentCache = await service.getTrending(40);
+      cacheTimestamp = now;
+    }
+  }
+  return contentCache;
+}
+
+async function getContentByMoodTone(
+  mood: 'unwind' | 'engage',
+  tone: 'laugh' | 'feel' | 'thrill' | 'think',
+  options: { includeTrending?: boolean; limit?: number } = {}
+): Promise<Content[]> {
+  const service = getContentService();
+  if (!service.isConfigured()) {
+    return [];
+  }
+  return service.getByMoodTone(mood, tone, options.limit || 20);
+}
 
 /**
  * Content candidate from search
@@ -200,14 +226,14 @@ export class CatalogAgent {
 
       console.log(`[Catalog] Mood: ${mood}, Tone: ${tone}, Energy: ${energy.toFixed(2)}, Valence: ${valence.toFixed(2)}`);
 
-      // Get content matching mood/tone
-      const matchedContent = getContentByMoodTone(mood, tone, {
+      // Get content matching mood/tone from TMDB
+      const matchedContent = await getContentByMoodTone(mood, tone, {
         includeTrending: true,
         limit: 20
       });
 
       // Convert to ContentCandidate format with calculated similarities
-      const mockCandidates: ContentCandidate[] = matchedContent.map((content, index) => {
+      const mockCandidates: ContentCandidate[] = matchedContent.map((content: Content, index: number) => {
         // Calculate vector similarity based on emotional match
         const energyDiff = Math.abs(content.energy - energy);
         const valenceDiff = Math.abs(content.valence - valence);
@@ -217,7 +243,8 @@ export class CatalogAgent {
       });
 
       // Also include some content from other categories for variety
-      const otherContent = ALL_MOCK_CONTENT
+      const allContent = await getContentCache();
+      const otherContent = allContent
         .filter(c => c.mood !== mood || c.tone !== tone)
         .slice(0, 5)
         .map(content => this.convertToCandidate(content, 0.4 + Math.random() * 0.2));
@@ -303,9 +330,9 @@ export class CatalogAgent {
   }
 
   /**
-   * Convert MockContent to ContentCandidate
+   * Convert Content to ContentCandidate
    */
-  private convertToCandidate(content: MockContent, similarity: number): ContentCandidate {
+  private convertToCandidate(content: Content, similarity: number): ContentCandidate {
     return {
       metadata: {
         contentId: content.id,
@@ -316,9 +343,7 @@ export class CatalogAgent {
         genres: content.genres,
         overview: content.overview,
         posterPath: content.posterUrl ?? undefined,
-        backdropPath: content.backdropUrl ?? undefined,
-        streamingId: content.streamingId,
-        streamingUrl: content.streamingUrl
+        backdropPath: content.backdropUrl ?? undefined
       },
       vectorSimilarity: similarity,
       matchScore: 0,

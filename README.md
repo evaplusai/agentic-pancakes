@@ -27,10 +27,9 @@ Join us to build agentic AI solutions that solve real problems using Google Clou
 Our **Aura Agent** solves the 45-minute decision problem with a conversational AI that understands your mood and preferences.
 
 <p align="center">
-  <img src="docs/ui-screen-final/00_screen.jpg" alt="Mood Selection" width="220"/>
-  <img src="docs/ui-screen-final/01_screen.jpg" alt="Tone & Result" width="220"/>
-  <img src="docs/ui-screen-final/02_screen.jpg" alt="Voice Search" width="220"/>
-  <img src="docs/ui-screen-final/03_screen.jpg" alt="Full Results" width="220"/>
+  <img src="docs/ui-screen-final/00_screen.jpg" alt="Mood & Tone Selection" width="280"/>
+  <img src="docs/ui-screen-final/01_screen.jpg" alt="Recommendation Result" width="280"/>
+  <img src="docs/ui-screen-final/02_screen.jpg" alt="Voice Search" width="280"/>
 </p>
 
 **Flow:** Mood → Tone → Voice/Text → Personalized Results with Alternatives

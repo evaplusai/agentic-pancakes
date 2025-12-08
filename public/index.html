@@ -1159,15 +1159,24 @@
                 flex-direction: column;
             }
 
-            /* Header mobile layout - two rows */
+            /* Header mobile layout - brand left, icons right */
             .header {
-                flex-wrap: wrap;
+                flex-wrap: nowrap;
                 padding: 10px 12px;
                 gap: 8px;
+                justify-content: space-between;
             }
 
             .brand {
                 gap: 8px;
+                flex-shrink: 1;
+                min-width: 0;
+            }
+
+            /* Push profile and icons to right */
+            .header-right {
+                margin-left: auto;
+                flex-shrink: 0;
             }
 
             /* Keep orb size decent on mobile */
@@ -1185,7 +1194,7 @@
                 font-size: 9px;
             }
 
-            /* Move icons to right, reduce gap */
+            /* Reduce gap between icons */
             .header-right {
                 gap: 6px;
             }
@@ -2171,13 +2180,22 @@ Content Embedding Pipeline:
 
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             const recognition = new SpeechRecognition();
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
             recognition.continuous = false;
             recognition.interimResults = false;
             recognition.lang = 'en-US';
+            recognition.maxAlternatives = 3;
+
+            // Vibrate to indicate listening
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
+            }
 
             recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript.toLowerCase();
-                console.log('Voice input:', transcript);
+                // Get best transcript from alternatives
+                let transcript = event.results[0][0].transcript.toLowerCase();
+                console.log('Voice input:', transcript, 'Confidence:', event.results[0][0].confidence);
 
                 // Find matching choice
                 let matchedChoice = null;
@@ -2215,7 +2233,15 @@ Content Embedding Pipeline:
             recognition.onerror = (event) => {
                 console.error('Speech recognition error:', event.error);
                 wrapper.querySelector('.mic-choice')?.classList.remove('listening');
-                addMessage("Couldn't hear you clearly. Please try again or tap a choice.", false, true);
+                // Vibrate on error
+                if (navigator.vibrate) {
+                    navigator.vibrate([100, 50, 100]);
+                }
+                if (event.error === 'no-speech') {
+                    addMessage("I didn't hear anything. Tap the mic and speak clearly.", false, true);
+                } else if (event.error !== 'aborted') {
+                    addMessage("Couldn't hear you clearly. Please try again or tap a choice.", false, true);
+                }
             };
 
             recognition.onend = () => {
@@ -2279,12 +2305,12 @@ Content Embedding Pipeline:
                 addMessage(question, false, true, () => {
                     const toneChoices = mood === 'unwind'
                         ? [
-                            { emoji: '😄', label: 'Make me laugh', action: () => selectTone('laugh') },
-                            { emoji: '🎭', label: 'Make me feel', action: () => selectTone('feel') }
+                            { emoji: '😄', label: 'Laugh', action: () => selectTone('laugh') },
+                            { emoji: '🎭', label: 'Feel', action: () => selectTone('feel') }
                         ]
                         : [
-                            { emoji: '🔥', label: 'Thrill me', action: () => selectTone('thrill') },
-                            { emoji: '🧠', label: 'Make me think', action: () => selectTone('think') }
+                            { emoji: '🔥', label: 'Thrills', action: () => selectTone('thrill') },
+                            { emoji: '🧠', label: 'Think', action: () => selectTone('think') }
                         ];
                     addChoiceButtons(toneChoices);
                 });
@@ -2297,10 +2323,10 @@ Content Embedding Pipeline:
             orb.setMood(tone);
 
             const toneLabels = {
-                laugh: 'Make me laugh',
-                feel: 'Something emotional',
-                thrill: 'Thrill me',
-                think: 'Make me think'
+                laugh: 'Laugh',
+                feel: 'Feel',
+                thrill: 'Thrills',
+                think: 'Think'
             };
 
             addMessage(toneLabels[tone] || tone, true);
@@ -2571,18 +2597,38 @@ Content Embedding Pipeline:
 
             if (!SpeechRecognition) {
                 console.warn('Speech recognition not supported in this browser');
+                // Hide mic buttons if not supported
+                document.querySelectorAll('.mic-button-header, .mic-choice').forEach(el => {
+                    el.style.display = 'none';
+                });
                 return;
+            }
+
+            // Check if on iOS Safari (has stricter requirements)
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+            // Warn if not on HTTPS (required for iOS)
+            if (isIOS && window.location.protocol !== 'https:') {
+                console.warn('Voice input requires HTTPS on iOS Safari');
             }
 
             speechRecognition = new SpeechRecognition();
             speechRecognition.continuous = false;
-            speechRecognition.interimResults = true;
+            // Disable interim results on iOS for better accuracy
+            speechRecognition.interimResults = !isIOS;
             speechRecognition.lang = 'en-US';
+            // Increase max alternatives for better matching
+            speechRecognition.maxAlternatives = 3;
 
             speechRecognition.onstart = () => {
                 isListening = true;
                 document.getElementById('micButton').classList.add('listening');
-                addMessage('Listening...', false, false);
+                // Vibrate on mobile to confirm listening started
+                if (navigator.vibrate) {
+                    navigator.vibrate(50);
+                }
+                addMessage('Listening... Speak now!', false, false);
             };
 
             speechRecognition.onend = () => {
@@ -2595,21 +2641,68 @@ Content Embedding Pipeline:
                 isListening = false;
                 document.getElementById('micButton').classList.remove('listening');
 
+                // Vibrate on error
+                if (navigator.vibrate) {
+                    navigator.vibrate([100, 50, 100]);
+                }
+
                 if (event.error === 'no-speech') {
-                    addMessage("I didn't catch that. Try again?", false, true);
-                } else if (event.error === 'not-allowed') {
-                    addMessage("Microphone access denied. Please allow microphone access to use voice input.", false, true);
+                    addMessage("I didn't hear anything. Tap the mic and speak clearly.", false, true);
+                } else if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+                    addMessage("Microphone access denied. Please allow microphone in your browser settings.", false, true);
+                } else if (event.error === 'network') {
+                    addMessage("Network error. Voice input requires an internet connection.", false, true);
+                } else if (event.error === 'aborted') {
+                    // User cancelled, no message needed
+                } else {
+                    addMessage("Voice input error. Please try again or type your request.", false, true);
                 }
             };
 
             speechRecognition.onresult = (event) => {
-                const result = event.results[event.results.length - 1];
-                const transcript = result[0].transcript.toLowerCase().trim();
+                // Get best result from all alternatives
+                let bestTranscript = '';
+                let bestConfidence = 0;
 
-                if (result.isFinal) {
+                for (let i = 0; i < event.results.length; i++) {
+                    const result = event.results[i];
+                    for (let j = 0; j < result.length; j++) {
+                        if (result[j].confidence > bestConfidence) {
+                            bestConfidence = result[j].confidence;
+                            bestTranscript = result[j].transcript;
+                        }
+                    }
+                    // Use final result
+                    if (result.isFinal) {
+                        bestTranscript = result[0].transcript;
+                        break;
+                    }
+                }
+
+                const transcript = bestTranscript.toLowerCase().trim();
+
+                if (event.results[event.results.length - 1].isFinal && transcript) {
+                    console.log('Voice recognized:', transcript, 'Confidence:', bestConfidence);
+                    // Vibrate on successful recognition
+                    if (navigator.vibrate) {
+                        navigator.vibrate(30);
+                    }
                     processVoiceCommand(transcript);
                 }
             };
+
+            // Pre-request microphone permission on page load (helps iOS)
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(stream => {
+                        // Got permission, stop the stream immediately
+                        stream.getTracks().forEach(track => track.stop());
+                        console.log('Microphone permission granted');
+                    })
+                    .catch(err => {
+                        console.warn('Microphone permission not granted:', err);
+                    });
+            }
         }
 
         function processVoiceCommand(transcript) {

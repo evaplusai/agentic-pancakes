@@ -638,11 +638,13 @@ app.post('/api/recommend', async (req, res): Promise<void> => {
 });
 
 // ============================================================================
-// Speech-to-Text Transcription (Modal Whisper)
+// Speech-to-Text Transcription (Modal Faster-Whisper)
 // ============================================================================
 
 const MODAL_WHISPER_URL = process.env.MODAL_WHISPER_URL || '';
+const MODAL_CHUNK_URL = MODAL_WHISPER_URL.replace('transcribe-endpoint', 'transcribe-chunk');
 
+// Full transcription endpoint
 app.post('/api/transcribe', async (req, res): Promise<void> => {
   try {
     const { audio_base64, language = 'en' } = req.body;
@@ -678,6 +680,47 @@ app.post('/api/transcribe', async (req, res): Promise<void> => {
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Unknown error',
       text: '',
+    });
+  }
+});
+
+// Fast chunk transcription for streaming (uses tiny model)
+app.post('/api/transcribe-chunk', async (req, res): Promise<void> => {
+  try {
+    const { audio_base64, language = 'en', chunk_id = 0 } = req.body;
+
+    if (!audio_base64) {
+      res.status(400).json({ error: 'No audio_base64 provided', text: '', chunk_id });
+      return;
+    }
+
+    if (!MODAL_CHUNK_URL) {
+      res.status(500).json({ error: 'Whisper API not configured', text: '', chunk_id });
+      return;
+    }
+
+    // Forward to Modal chunk endpoint (faster, uses tiny model)
+    const response = await fetch(MODAL_CHUNK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audio_base64, language, chunk_id }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Modal chunk error:', errorText);
+      res.status(500).json({ error: 'Transcription failed', text: '', chunk_id });
+      return;
+    }
+
+    const result = await response.json();
+    res.json(result);
+  } catch (error) {
+    console.error('Chunk transcription error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+      text: '',
+      chunk_id: req.body?.chunk_id || 0,
     });
   }
 });

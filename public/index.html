@@ -2268,19 +2268,26 @@ Content Embedding Pipeline:
             recognition.start();
         }
 
-        // Whisper-based voice input for choices (iOS) with Voice Activity Detection
+        // Whisper-based voice input for choices (iOS) with STREAMING CHUNK transcription
         let choiceMediaRecorder = null;
         let choiceAudioChunks = [];
         let isRecordingChoiceWhisper = false;
         let choiceAudioContext = null;
         let choiceSilenceTimeout = null;
         let choiceHasDetectedSpeech = false;
+        let choiceStreamingTranscript = '';
+        let choiceChunkCounter = 0;
+        let choiceChunkInterval = null;
+        let choiceMimeType = null;
+        let currentChoicesContext = null; // Store choices for chunk processing
 
         async function startWhisperForChoices(wrapper, choices) {
             if (isRecordingChoiceWhisper) {
                 stopWhisperForChoices(wrapper);
                 return;
             }
+
+            currentChoicesContext = { wrapper, choices }; // Store for chunk processing
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -2300,13 +2307,15 @@ Content Embedding Pipeline:
                 const bufferLength = analyser.frequencyBinCount;
                 const dataArray = new Uint8Array(bufferLength);
 
-                const mimeType = MediaRecorder.isTypeSupported('audio/webm')
+                choiceMimeType = MediaRecorder.isTypeSupported('audio/webm')
                     ? 'audio/webm'
                     : 'audio/mp4';
 
-                choiceMediaRecorder = new MediaRecorder(stream, { mimeType });
+                choiceMediaRecorder = new MediaRecorder(stream, { mimeType: choiceMimeType });
                 choiceAudioChunks = [];
                 choiceHasDetectedSpeech = false;
+                choiceStreamingTranscript = '';
+                choiceChunkCounter = 0;
 
                 choiceMediaRecorder.ondataavailable = (event) => {
                     if (event.data.size > 0) {
@@ -2315,6 +2324,11 @@ Content Embedding Pipeline:
                 };
 
                 choiceMediaRecorder.onstop = async () => {
+                    // Clean up
+                    if (choiceChunkInterval) {
+                        clearInterval(choiceChunkInterval);
+                        choiceChunkInterval = null;
+                    }
                     stream.getTracks().forEach(track => track.stop());
                     if (choiceAudioContext) {
                         choiceAudioContext.close();
@@ -2326,13 +2340,21 @@ Content Embedding Pipeline:
                     }
                     wrapper.querySelector('.mic-choice')?.classList.remove('listening');
 
+                    // If we have streaming transcript, use it
+                    if (choiceStreamingTranscript.trim()) {
+                        console.log('Final choice streaming transcript:', choiceStreamingTranscript);
+                        processChoiceVoiceResult(choiceStreamingTranscript.toLowerCase().trim(), wrapper, choices);
+                        return;
+                    }
+
+                    // Fallback: transcribe all audio if streaming didn't work
                     if (choiceAudioChunks.length === 0) {
                         addMessage("No audio recorded. Please try again.", false, true);
                         return;
                     }
 
                     addMessage('Processing...', false, false);
-                    const audioBlob = new Blob(choiceAudioChunks, { type: mimeType });
+                    const audioBlob = new Blob(choiceAudioChunks, { type: choiceMimeType });
                     await transcribeChoiceWithWhisper(audioBlob, wrapper, choices);
                 };
 
@@ -2341,6 +2363,18 @@ Content Embedding Pipeline:
 
                 if (navigator.vibrate) navigator.vibrate(50);
                 addMessage('Listening...', false, false);
+
+                // Send chunks every 1.5 seconds for near real-time transcription
+                choiceChunkInterval = setInterval(async () => {
+                    if (!isRecordingChoiceWhisper || choiceAudioChunks.length === 0) return;
+
+                    const currentChunks = [...choiceAudioChunks];
+                    const chunkBlob = new Blob(currentChunks, { type: choiceMimeType });
+
+                    if (chunkBlob.size > 5000) {
+                        sendChoiceChunkForTranscription(chunkBlob, choiceChunkCounter++);
+                    }
+                }, 1500);
 
                 // Voice Activity Detection loop
                 let silenceStart = null;
@@ -2388,7 +2422,45 @@ Content Embedding Pipeline:
             }
         }
 
+        // Send choice audio chunk for fast transcription
+        async function sendChoiceChunkForTranscription(blob, chunkId) {
+            try {
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+
+                reader.onloadend = async () => {
+                    const base64Audio = reader.result.split(',')[1];
+
+                    const response = await fetch('/api/transcribe-chunk', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            audio_base64: base64Audio,
+                            language: 'en',
+                            chunk_id: chunkId
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.text && result.text.trim()) {
+                        choiceStreamingTranscript = result.text.trim();
+                        if (isRecordingChoiceWhisper) {
+                            addMessage(`"${choiceStreamingTranscript}"...`, false, false);
+                        }
+                        console.log(`Choice chunk ${chunkId} transcript:`, result.text);
+                    }
+                };
+            } catch (error) {
+                console.error('Choice chunk transcription error:', error);
+            }
+        }
+
         function stopWhisperForChoices(wrapper) {
+            if (choiceChunkInterval) {
+                clearInterval(choiceChunkInterval);
+                choiceChunkInterval = null;
+            }
             if (choiceMediaRecorder && choiceMediaRecorder.state === 'recording') {
                 choiceMediaRecorder.stop();
                 isRecordingChoiceWhisper = false;
@@ -2396,6 +2468,21 @@ Content Embedding Pipeline:
             if (choiceSilenceTimeout) {
                 clearTimeout(choiceSilenceTimeout);
                 choiceSilenceTimeout = null;
+            }
+        }
+
+        // Process the voice result for choice selection
+        function processChoiceVoiceResult(transcript, wrapper, choices) {
+            if (navigator.vibrate) navigator.vibrate(30);
+            const matchedChoice = choices.find(choice =>
+                transcript.includes(choice.label.toLowerCase())
+            );
+
+            if (matchedChoice) {
+                wrapper.remove();
+                matchedChoice.action();
+            } else {
+                addMessage(`I heard "${transcript}". Please try saying one of the options.`, false, true);
             }
         }
 
@@ -2423,8 +2510,7 @@ Content Embedding Pipeline:
 
                     const transcript = result.text?.trim();
                     if (transcript) {
-                        if (navigator.vibrate) navigator.vibrate(30);
-                        processChoiceVoiceResult(transcript, wrapper, choices);
+                        processChoiceVoiceResult(transcript.toLowerCase(), wrapper, choices);
                     } else {
                         addMessage("Didn't catch that. Please try again.", false, true);
                     }
@@ -2971,7 +3057,7 @@ Content Embedding Pipeline:
 
         // ============================================================================
         // Whisper-based Voice Input (for iOS and better accuracy)
-        // With Voice Activity Detection (auto-stop on silence)
+        // With STREAMING CHUNK transcription - sends chunks every 1.5s for near real-time
         // ============================================================================
 
         let mediaRecorder = null;
@@ -2981,6 +3067,11 @@ Content Embedding Pipeline:
         let analyser = null;
         let silenceTimeout = null;
         let hasDetectedSpeech = false;
+        let streamingTranscript = ''; // Accumulated transcript from chunks
+        let chunkCounter = 0;
+        let chunkInterval = null;
+        let currentStream = null;
+        let streamingMimeType = null;
 
         async function startWhisperRecording() {
             if (isRecordingWhisper) {
@@ -2996,6 +3087,7 @@ Content Embedding Pipeline:
                         sampleRate: 16000
                     }
                 });
+                currentStream = stream;
 
                 // Set up audio analysis for voice activity detection
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -3007,13 +3099,15 @@ Content Embedding Pipeline:
                 const dataArray = new Uint8Array(bufferLength);
 
                 // Use webm for best compatibility, or mp4 for iOS
-                const mimeType = MediaRecorder.isTypeSupported('audio/webm')
+                streamingMimeType = MediaRecorder.isTypeSupported('audio/webm')
                     ? 'audio/webm'
                     : 'audio/mp4';
 
-                mediaRecorder = new MediaRecorder(stream, { mimeType });
+                mediaRecorder = new MediaRecorder(stream, { mimeType: streamingMimeType });
                 audioChunks = [];
                 hasDetectedSpeech = false;
+                streamingTranscript = '';
+                chunkCounter = 0;
 
                 mediaRecorder.ondataavailable = (event) => {
                     if (event.data.size > 0) {
@@ -3022,6 +3116,11 @@ Content Embedding Pipeline:
                 };
 
                 mediaRecorder.onstop = async () => {
+                    // Clean up
+                    if (chunkInterval) {
+                        clearInterval(chunkInterval);
+                        chunkInterval = null;
+                    }
                     stream.getTracks().forEach(track => track.stop());
                     if (audioContext) {
                         audioContext.close();
@@ -3032,22 +3131,45 @@ Content Embedding Pipeline:
                         silenceTimeout = null;
                     }
 
+                    // If we already have streaming transcript, use it
+                    if (streamingTranscript.trim()) {
+                        console.log('Final streaming transcript:', streamingTranscript);
+                        if (navigator.vibrate) navigator.vibrate(30);
+                        processVoiceCommand(streamingTranscript.toLowerCase().trim());
+                        return;
+                    }
+
+                    // Fallback: transcribe all audio if streaming didn't work
                     if (audioChunks.length === 0) {
                         addMessage("No audio recorded. Please try again.", false, true);
                         return;
                     }
 
-                    const audioBlob = new Blob(audioChunks, { type: mimeType });
+                    const audioBlob = new Blob(audioChunks, { type: streamingMimeType });
                     await transcribeWithWhisper(audioBlob);
                 };
 
-                mediaRecorder.start(100); // Collect data every 100ms for smoother VAD
+                mediaRecorder.start(100); // Collect data every 100ms
                 isRecordingWhisper = true;
 
                 // Update UI
                 document.getElementById('micButton').classList.add('listening');
                 if (navigator.vibrate) navigator.vibrate(50);
                 addMessage('Listening...', false, false);
+
+                // Send chunks every 1.5 seconds for near real-time transcription
+                chunkInterval = setInterval(async () => {
+                    if (!isRecordingWhisper || audioChunks.length === 0) return;
+
+                    // Get current chunks and send for transcription
+                    const currentChunks = [...audioChunks];
+                    const chunkBlob = new Blob(currentChunks, { type: streamingMimeType });
+
+                    // Only send if we have meaningful audio (> 5KB)
+                    if (chunkBlob.size > 5000) {
+                        sendChunkForTranscription(chunkBlob, chunkCounter++);
+                    }
+                }, 1500);
 
                 // Voice Activity Detection loop
                 let silenceStart = null;
@@ -3097,12 +3219,54 @@ Content Embedding Pipeline:
             }
         }
 
+        // Send audio chunk for fast transcription (uses tiny model)
+        async function sendChunkForTranscription(blob, chunkId) {
+            try {
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+
+                reader.onloadend = async () => {
+                    const base64Audio = reader.result.split(',')[1];
+
+                    const response = await fetch('/api/transcribe-chunk', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            audio_base64: base64Audio,
+                            language: 'en',
+                            chunk_id: chunkId
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.text && result.text.trim()) {
+                        // Update streaming transcript (use latest chunk as the full transcript so far)
+                        streamingTranscript = result.text.trim();
+                        // Show partial result to user
+                        if (isRecordingWhisper) {
+                            addMessage(`"${streamingTranscript}"...`, false, false);
+                        }
+                        console.log(`Chunk ${chunkId} transcript:`, result.text);
+                    }
+                };
+            } catch (error) {
+                console.error('Chunk transcription error:', error);
+            }
+        }
+
         function stopWhisperRecording() {
+            if (chunkInterval) {
+                clearInterval(chunkInterval);
+                chunkInterval = null;
+            }
             if (mediaRecorder && mediaRecorder.state === 'recording') {
                 mediaRecorder.stop();
                 isRecordingWhisper = false;
                 document.getElementById('micButton').classList.remove('listening');
-                addMessage('Processing...', false, false);
+                if (!streamingTranscript.trim()) {
+                    addMessage('Processing...', false, false);
+                }
             }
             if (silenceTimeout) {
                 clearTimeout(silenceTimeout);

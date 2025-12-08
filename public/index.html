@@ -2772,6 +2772,150 @@ Content Embedding Pipeline:
             }
         }
 
+        // ============================================================================
+        // Whisper-based Voice Input (for iOS and better accuracy)
+        // ============================================================================
+
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecordingWhisper = false;
+
+        async function startWhisperRecording() {
+            if (isRecordingWhisper) {
+                stopWhisperRecording();
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 16000
+                    }
+                });
+
+                // Use webm for best compatibility, or mp4 for iOS
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm')
+                    ? 'audio/webm'
+                    : 'audio/mp4';
+
+                mediaRecorder = new MediaRecorder(stream, { mimeType });
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async () => {
+                    stream.getTracks().forEach(track => track.stop());
+
+                    if (audioChunks.length === 0) {
+                        addMessage("No audio recorded. Please try again.", false, true);
+                        return;
+                    }
+
+                    const audioBlob = new Blob(audioChunks, { type: mimeType });
+                    await transcribeWithWhisper(audioBlob);
+                };
+
+                mediaRecorder.start();
+                isRecordingWhisper = true;
+
+                // Update UI
+                document.getElementById('micButton').classList.add('listening');
+                if (navigator.vibrate) navigator.vibrate(50);
+                addMessage('Recording... Tap mic again to stop', false, false);
+
+                // Auto-stop after 10 seconds
+                setTimeout(() => {
+                    if (isRecordingWhisper) {
+                        stopWhisperRecording();
+                    }
+                }, 10000);
+
+            } catch (error) {
+                console.error('Failed to start recording:', error);
+                addMessage("Microphone access denied. Please allow microphone in Settings.", false, true);
+            }
+        }
+
+        function stopWhisperRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                isRecordingWhisper = false;
+                document.getElementById('micButton').classList.remove('listening');
+                addMessage('Processing your voice...', false, false);
+            }
+        }
+
+        async function transcribeWithWhisper(audioBlob) {
+            try {
+                // Convert blob to base64
+                const reader = new FileReader();
+                reader.readAsDataURL(audioBlob);
+
+                reader.onloadend = async () => {
+                    const base64Audio = reader.result.split(',')[1]; // Remove data:audio/... prefix
+
+                    const response = await fetch('/api/transcribe', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ audio_base64: base64Audio, language: 'en' })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.error) {
+                        console.error('Transcription error:', result.error);
+                        addMessage("Couldn't understand. Please try again.", false, true);
+                        return;
+                    }
+
+                    const transcript = result.text?.trim();
+                    if (transcript) {
+                        console.log('Whisper transcription:', transcript);
+                        if (navigator.vibrate) navigator.vibrate(30);
+                        processVoiceCommand(transcript.toLowerCase());
+                    } else {
+                        addMessage("Didn't catch that. Please speak clearly.", false, true);
+                    }
+                };
+            } catch (error) {
+                console.error('Whisper API error:', error);
+                addMessage("Voice processing failed. Please try again.", false, true);
+            }
+        }
+
+        // Use Whisper on iOS, Web Speech API elsewhere
+        function toggleVoiceInput() {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+            if (isIOS) {
+                // Use Whisper API on iOS for better accuracy
+                if (isRecordingWhisper) {
+                    stopWhisperRecording();
+                } else {
+                    startWhisperRecording();
+                }
+            } else {
+                // Use Web Speech API on desktop/Android
+                if (speechRecognition) {
+                    if (isListening) {
+                        speechRecognition.stop();
+                    } else {
+                        try {
+                            speechRecognition.start();
+                        } catch (e) {
+                            console.error('Speech recognition start error:', e);
+                        }
+                    }
+                }
+            }
+        }
+
         function processVoiceCommand(transcript) {
             addMessage(transcript, true);
 

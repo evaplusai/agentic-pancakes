@@ -637,6 +637,51 @@ app.post('/api/recommend', async (req, res): Promise<void> => {
   }
 });
 
+// ============================================================================
+// Speech-to-Text Transcription (Modal Whisper)
+// ============================================================================
+
+const MODAL_WHISPER_URL = process.env.MODAL_WHISPER_URL || '';
+
+app.post('/api/transcribe', async (req, res): Promise<void> => {
+  try {
+    const { audio_base64, language = 'en' } = req.body;
+
+    if (!audio_base64) {
+      res.status(400).json({ error: 'No audio_base64 provided', text: '' });
+      return;
+    }
+
+    if (!MODAL_WHISPER_URL) {
+      res.status(500).json({ error: 'Whisper API not configured', text: '' });
+      return;
+    }
+
+    // Forward to Modal Whisper endpoint
+    const response = await fetch(MODAL_WHISPER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audio_base64, language }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Modal Whisper error:', errorText);
+      res.status(500).json({ error: 'Transcription failed', text: '' });
+      return;
+    }
+
+    const result = await response.json();
+    res.json(result);
+  } catch (error) {
+    console.error('Transcription error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+      text: '',
+    });
+  }
+});
+
 // Health check endpoint with Phase 2 learning status
 app.get('/api/health', async (_req, res) => {
   const rbStats = reasoningBank.getStats();

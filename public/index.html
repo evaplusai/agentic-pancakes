@@ -2609,6 +2609,9 @@ Content Embedding Pipeline:
             const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
             window.isIOSDevice = isIOS; // Store for later use
 
+            // Track if Web Speech has failed on iOS (to auto-switch to Whisper)
+            window.webSpeechFailedOnIOS = false;
+
             // Warn if not on HTTPS (required for iOS)
             if (isIOS && window.location.protocol !== 'https:') {
                 console.warn('Voice input requires HTTPS on iOS Safari');
@@ -2687,6 +2690,16 @@ Content Embedding Pipeline:
                 if (speechTimeout) {
                     clearTimeout(speechTimeout);
                     speechTimeout = null;
+                }
+
+                // On iOS, if Web Speech fails with certain errors, switch to Whisper
+                if (isIOS && (event.error === 'no-speech' || event.error === 'network' || event.error === 'audio-capture')) {
+                    console.log('Web Speech failed on iOS, switching to Whisper');
+                    window.webSpeechFailedOnIOS = true;
+                    addMessage("Switching to enhanced voice mode...", false, false);
+                    setTimeout(() => startWhisperRecording(), 500);
+                    speechRecognition = createRecognition();
+                    return;
                 }
 
                 // Vibrate on error
@@ -2889,30 +2902,39 @@ Content Embedding Pipeline:
             }
         }
 
-        // Use Whisper on iOS, Web Speech API elsewhere
+        // Use Web Speech API first (real-time), fall back to Whisper if it fails
         function toggleVoiceInput() {
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-            if (isIOS) {
-                // Use Whisper API on iOS for better accuracy
+            // If Web Speech has failed on iOS before, use Whisper
+            if (isIOS && window.webSpeechFailedOnIOS) {
                 if (isRecordingWhisper) {
                     stopWhisperRecording();
                 } else {
                     startWhisperRecording();
                 }
-            } else {
-                // Use Web Speech API on desktop/Android
-                if (speechRecognition) {
-                    if (isListening) {
-                        speechRecognition.stop();
-                    } else {
-                        try {
-                            speechRecognition.start();
-                        } catch (e) {
-                            console.error('Speech recognition start error:', e);
+                return;
+            }
+
+            // Try Web Speech API first (works real-time)
+            if (speechRecognition) {
+                if (isListening) {
+                    speechRecognition.stop();
+                } else {
+                    try {
+                        speechRecognition.start();
+                    } catch (e) {
+                        console.error('Speech recognition start error:', e);
+                        // On iOS, fall back to Whisper
+                        if (isIOS) {
+                            window.webSpeechFailedOnIOS = true;
+                            startWhisperRecording();
                         }
                     }
                 }
+            } else if (isIOS) {
+                // No Web Speech API, use Whisper on iOS
+                startWhisperRecording();
             }
         }
 

@@ -2207,9 +2207,10 @@ Content Embedding Pipeline:
             if (matchedChoice) {
                 matchedChoice.action();
             } else {
-                addMessage(`I heard "${transcript}" - let me pick something for you!`, false, true);
-                // Default to first choice if no match
-                choices[0].action();
+                // No match found - process as free-form voice command
+                wrapper.remove();
+                processVoiceCommand(lowerTranscript);
+                return;
             }
         }
 
@@ -2404,22 +2405,6 @@ Content Embedding Pipeline:
             }
         }
 
-        // Process the voice result for choice selection
-        function processChoiceVoiceResult(transcript, wrapper, choices) {
-            if (navigator.vibrate) navigator.vibrate(30);
-            const matchedChoice = choices.find(choice =>
-                transcript.includes(choice.label.toLowerCase())
-            );
-
-            if (matchedChoice) {
-                wrapper.remove();
-                matchedChoice.action();
-            } else {
-                // No exact match - process as free-form voice command
-                wrapper.remove();
-                processVoiceCommand(transcript);
-            }
-        }
 
         async function transcribeChoiceWithWhisper(audioBlob, wrapper, choices) {
             try {

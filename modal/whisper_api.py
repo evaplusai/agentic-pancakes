@@ -71,6 +71,7 @@ def transcribe(audio_bytes: bytes, language: str = "en") -> dict:
 @app.function(
     image=whisper_image,
     gpu="T4",
+    memory=4096,  # 4GB RAM for model loading
     timeout=300,
     container_idle_timeout=120,  # Keep warm for 2 min to avoid cold starts
 )
@@ -145,6 +146,7 @@ def transcribe_endpoint(request: dict) -> dict:
 @app.function(
     image=whisper_image,
     gpu="T4",
+    memory=2048,  # 2GB RAM for tiny model
     timeout=60,
     container_idle_timeout=120,
 )

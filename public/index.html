@@ -2902,39 +2902,30 @@ Content Embedding Pipeline:
             }
         }
 
-        // Use Web Speech API first (real-time), fall back to Whisper if it fails
+        // iOS uses Whisper only, Desktop uses Web Speech API
         function toggleVoiceInput() {
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-            // If Web Speech has failed on iOS before, use Whisper
-            if (isIOS && window.webSpeechFailedOnIOS) {
+            if (isIOS) {
+                // iOS: Always use Whisper for reliable transcription
                 if (isRecordingWhisper) {
                     stopWhisperRecording();
                 } else {
                     startWhisperRecording();
                 }
-                return;
-            }
-
-            // Try Web Speech API first (works real-time)
-            if (speechRecognition) {
-                if (isListening) {
-                    speechRecognition.stop();
-                } else {
-                    try {
-                        speechRecognition.start();
-                    } catch (e) {
-                        console.error('Speech recognition start error:', e);
-                        // On iOS, fall back to Whisper
-                        if (isIOS) {
-                            window.webSpeechFailedOnIOS = true;
-                            startWhisperRecording();
+            } else {
+                // Desktop/Android: Use Web Speech API (real-time)
+                if (speechRecognition) {
+                    if (isListening) {
+                        speechRecognition.stop();
+                    } else {
+                        try {
+                            speechRecognition.start();
+                        } catch (e) {
+                            console.error('Speech recognition start error:', e);
                         }
                     }
                 }
-            } else if (isIOS) {
-                // No Web Speech API, use Whisper on iOS
-                startWhisperRecording();
             }
         }
 

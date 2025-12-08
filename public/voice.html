@@ -150,6 +150,9 @@
         let chunkInterval = null;
         let chunkCounter = 0;
         let streamingText = '';
+        let audioContext = null;
+        let analyser = null;
+        let hasDetectedSpeech = false;
 
         function log(msg, type = 'info') {
             const entry = document.createElement('div');
@@ -186,24 +189,38 @@
                     : 'audio/mp4';
                 log(`Using mime type: ${mimeType}`);
 
+                // Set up Voice Activity Detection (VAD)
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                analyser.fftSize = 512;
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                hasDetectedSpeech = false;
+
                 mediaRecorder = new MediaRecorder(stream, { mimeType });
                 audioChunks = [];
                 chunkCounter = 0;
                 streamingText = '';
-                liveTranscript.textContent = 'Listening...';
+                liveTranscript.textContent = 'Listening... speak now';
                 liveTranscript.className = 'transcript partial';
                 finalTranscript.textContent = '-';
 
                 mediaRecorder.ondataavailable = (event) => {
                     if (event.data.size > 0) {
                         audioChunks.push(event.data);
-                        log(`Audio chunk received: ${event.data.size} bytes`);
                     }
                 };
 
                 mediaRecorder.onstop = async () => {
                     log('Recording stopped');
                     stream.getTracks().forEach(track => track.stop());
+
+                    if (audioContext) {
+                        audioContext.close();
+                        audioContext = null;
+                    }
 
                     if (chunkInterval) {
                         clearInterval(chunkInterval);
@@ -218,25 +235,73 @@
                     }
                 };
 
-                mediaRecorder.start(500); // Get data every 500ms
+                mediaRecorder.start(100); // Get data every 100ms for smoother VAD
                 isRecording = true;
 
                 micBtn.classList.add('recording');
-                status.textContent = 'Recording... Tap to stop';
+                status.textContent = 'Listening... (auto-stops on pause)';
                 status.classList.add('recording');
 
-                log('Recording started', 'success');
+                log('Recording started with VAD', 'success');
+
+                // Voice Activity Detection loop
+                let silenceStart = null;
+                const SILENCE_THRESHOLD = 15;
+                const SILENCE_DURATION = 1500; // 1.5 seconds of silence to stop
+                const SPEECH_THRESHOLD = 25;
+
+                function checkAudioLevel() {
+                    if (!isRecording) return;
+
+                    analyser.getByteFrequencyData(dataArray);
+                    const average = dataArray.reduce((a, b) => a + b, 0) / bufferLength;
+
+                    // Detect speech
+                    if (average > SPEECH_THRESHOLD) {
+                        if (!hasDetectedSpeech) {
+                            log(`Speech detected! Level: ${average.toFixed(1)}`, 'success');
+                            liveTranscript.textContent = 'Hearing you...';
+                        }
+                        hasDetectedSpeech = true;
+                        silenceStart = null;
+                    }
+
+                    // After detecting speech, check for silence
+                    if (hasDetectedSpeech && average < SILENCE_THRESHOLD) {
+                        if (!silenceStart) {
+                            silenceStart = Date.now();
+                            log(`Silence started, waiting ${SILENCE_DURATION}ms...`);
+                        } else if (Date.now() - silenceStart > SILENCE_DURATION) {
+                            log('Silence detected - auto-stopping', 'success');
+                            stopRecording();
+                            return;
+                        }
+                    } else if (average >= SILENCE_THRESHOLD) {
+                        silenceStart = null;
+                    }
+
+                    requestAnimationFrame(checkAudioLevel);
+                }
+                checkAudioLevel();
 
                 // Send chunks every 2 seconds for live transcription
                 chunkInterval = setInterval(async () => {
-                    if (audioChunks.length > 0) {
+                    if (audioChunks.length > 0 && hasDetectedSpeech) {
                         const chunkBlob = new Blob([...audioChunks], { type: mimeType });
                         if (chunkBlob.size > 3000) {
-                            log(`Sending chunk ${chunkCounter} for transcription: ${chunkBlob.size} bytes`);
+                            log(`Sending chunk ${chunkCounter}: ${chunkBlob.size} bytes`);
                             await transcribeChunk(chunkBlob, chunkCounter++);
                         }
                     }
                 }, 2000);
+
+                // Fallback: Auto-stop after 15 seconds max
+                setTimeout(() => {
+                    if (isRecording) {
+                        log('Max recording time reached - stopping');
+                        stopRecording();
+                    }
+                }, 15000);
 
             } catch (error) {
                 log(`Error: ${error.message}`, 'error');

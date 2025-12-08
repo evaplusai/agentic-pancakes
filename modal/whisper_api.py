@@ -10,11 +10,12 @@ import modal
 # Create Modal app
 app = modal.App("whisper-transcription")
 
-# Define the image with faster-whisper dependencies
+# Define the image with faster-whisper dependencies - preload model
 whisper_image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("ffmpeg")
     .pip_install("faster-whisper", "ffmpeg-python", "fastapi")
+    .run_commands("python -c \"from faster_whisper import WhisperModel; WhisperModel('tiny', device='cpu', compute_type='int8')\"")
 )
 
 
@@ -71,10 +72,10 @@ def transcribe(audio_bytes: bytes, language: str = "en") -> dict:
 
 @app.function(
     image=whisper_image,
-    cpu=2,
-    memory=4096,  # 4GB RAM for model loading
-    timeout=300,
-    container_idle_timeout=120,  # Keep warm for 2 min to avoid cold starts
+    cpu=4,
+    memory=2048,
+    timeout=60,
+    container_idle_timeout=300,  # Keep warm for 5 min
 )
 @modal.concurrent(max_inputs=10)
 @modal.fastapi_endpoint(method="POST")
@@ -106,8 +107,8 @@ def transcribe_endpoint(request: dict) -> dict:
     except Exception as e:
         return {"error": f"Invalid base64: {str(e)}", "text": ""}
 
-    # Load model - use CPU with int8 for reliability
-    model = WhisperModel("base", device="cpu", compute_type="int8")
+    # Use tiny model for speed - still accurate for short audio
+    model = WhisperModel("tiny", device="cpu", compute_type="int8", cpu_threads=4)
 
     # Write to temp file
     with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as f:
@@ -146,10 +147,10 @@ def transcribe_endpoint(request: dict) -> dict:
 # Streaming endpoint for chunked audio
 @app.function(
     image=whisper_image,
-    cpu=2,
-    memory=2048,  # 2GB RAM for tiny model
-    timeout=60,
-    container_idle_timeout=120,
+    cpu=4,
+    memory=1024,
+    timeout=30,
+    container_idle_timeout=300,  # Keep warm for 5 min
 )
 @modal.concurrent(max_inputs=20)
 @modal.fastapi_endpoint(method="POST")
@@ -184,8 +185,8 @@ def transcribe_chunk(request: dict) -> dict:
     except Exception as e:
         return {"error": f"Invalid base64: {str(e)}", "text": "", "chunk_id": chunk_id}
 
-    # Use tiny model on CPU - reliable and still fast
-    model = WhisperModel("tiny", device="cpu", compute_type="int8")
+    # Use tiny model with 4 CPU threads for speed
+    model = WhisperModel("tiny", device="cpu", compute_type="int8", cpu_threads=4)
 
     with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as f:
         f.write(audio_bytes)

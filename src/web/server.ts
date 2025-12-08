@@ -125,7 +125,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Large limit for audio base64 data
 app.use(express.static(path.join(__dirname, '../../public')));
 
 // MCP Client setup (optional - will fallback to mock data if MCP not available)

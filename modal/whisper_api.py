@@ -20,7 +20,8 @@ whisper_image = (
 
 @app.function(
     image=whisper_image,
-    gpu="T4",
+    cpu=2,
+    memory=4096,
     timeout=300,
 )
 @modal.concurrent(max_inputs=10)
@@ -32,8 +33,8 @@ def transcribe(audio_bytes: bytes, language: str = "en") -> dict:
     import tempfile
     import os
 
-    # Load model (cached after first load) - use float16 for speed
-    model = WhisperModel("base", device="cuda", compute_type="float16")
+    # Load model on CPU with int8 for reliability
+    model = WhisperModel("base", device="cpu", compute_type="int8")
 
     # Write audio to temp file
     with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as f:
@@ -70,7 +71,7 @@ def transcribe(audio_bytes: bytes, language: str = "en") -> dict:
 
 @app.function(
     image=whisper_image,
-    gpu="T4",
+    cpu=2,
     memory=4096,  # 4GB RAM for model loading
     timeout=300,
     container_idle_timeout=120,  # Keep warm for 2 min to avoid cold starts
@@ -105,8 +106,8 @@ def transcribe_endpoint(request: dict) -> dict:
     except Exception as e:
         return {"error": f"Invalid base64: {str(e)}", "text": ""}
 
-    # Load model - float16 for GPU speed
-    model = WhisperModel("base", device="cuda", compute_type="float16")
+    # Load model - use CPU with int8 for reliability
+    model = WhisperModel("base", device="cpu", compute_type="int8")
 
     # Write to temp file
     with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as f:
@@ -145,7 +146,7 @@ def transcribe_endpoint(request: dict) -> dict:
 # Streaming endpoint for chunked audio
 @app.function(
     image=whisper_image,
-    gpu="T4",
+    cpu=2,
     memory=2048,  # 2GB RAM for tiny model
     timeout=60,
     container_idle_timeout=120,
@@ -183,8 +184,8 @@ def transcribe_chunk(request: dict) -> dict:
     except Exception as e:
         return {"error": f"Invalid base64: {str(e)}", "text": "", "chunk_id": chunk_id}
 
-    # Use tiny model for chunks - faster for short audio
-    model = WhisperModel("tiny", device="cuda", compute_type="float16")
+    # Use tiny model on CPU - reliable and still fast
+    model = WhisperModel("tiny", device="cpu", compute_type="int8")
 
     with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as f:
         f.write(audio_bytes)

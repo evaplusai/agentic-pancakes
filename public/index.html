@@ -3010,26 +3010,6 @@ Content Embedding Pipeline:
             }, 300);
         }
 
-        function toggleVoiceInput() {
-            if (!speechRecognition) {
-                initVoiceInput();
-                if (!speechRecognition) {
-                    addMessage("Voice input isn't supported in your browser. Try Chrome or Edge.", false, true);
-                    return;
-                }
-            }
-
-            if (isListening) {
-                speechRecognition.stop();
-            } else {
-                try {
-                    speechRecognition.start();
-                } catch (err) {
-                    console.error('Failed to start speech recognition:', err);
-                }
-            }
-        }
-
         // Initialize voice input on load
         initVoiceInput();
 

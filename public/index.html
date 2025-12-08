@@ -2415,7 +2415,9 @@ Content Embedding Pipeline:
                 wrapper.remove();
                 matchedChoice.action();
             } else {
-                addMessage(`I heard "${transcript}". Please try saying one of the options.`, false, true);
+                // No exact match - process as free-form voice command
+                wrapper.remove();
+                processVoiceCommand(transcript);
             }
         }
 

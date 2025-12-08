@@ -1159,9 +1159,68 @@
                 flex-direction: column;
             }
 
+            /* Header mobile layout - two rows */
+            .header {
+                flex-wrap: wrap;
+                padding: 10px 12px;
+                gap: 8px;
+            }
+
+            .brand {
+                gap: 8px;
+            }
+
+            /* Keep orb size decent on mobile */
             .header-orb-container {
-                width: 44px;
-                height: 44px;
+                width: 40px;
+                height: 40px;
+                flex-shrink: 0;
+            }
+
+            .brand-name {
+                font-size: 18px;
+            }
+
+            .brand-tagline {
+                font-size: 9px;
+            }
+
+            /* Move icons to right, reduce gap */
+            .header-right {
+                gap: 6px;
+            }
+
+            /* Hide user type on mobile to save space */
+            .user-type {
+                display: none;
+            }
+
+            .user-selector {
+                min-width: auto;
+                padding: 4px 8px;
+            }
+
+            .user-name {
+                font-size: 12px;
+            }
+
+            .user-avatar {
+                font-size: 16px;
+            }
+
+            /* Smaller icon buttons */
+            .about-button,
+            .audio-toggle,
+            .mic-button-header {
+                width: 32px;
+                height: 32px;
+            }
+
+            .about-button svg,
+            .audio-toggle svg,
+            .mic-button-header svg {
+                width: 16px;
+                height: 16px;
             }
 
             .right-panel {
@@ -1170,7 +1229,18 @@
             }
 
             .chat-messages {
-                padding: 20px 15px;
+                padding: 20px 12px;
+            }
+
+            /* Smaller choice buttons on mobile */
+            .chat-choice-btn {
+                padding: 8px 12px;
+                font-size: 13px;
+                gap: 6px;
+            }
+
+            .chat-choice-btn .emoji {
+                font-size: 14px;
             }
 
             .content-card {
@@ -1179,6 +1249,27 @@
 
             .content-grid {
                 grid-template-columns: 1fr;
+            }
+        }
+
+        /* Extra small screens */
+        @media (max-width: 380px) {
+            .header-orb-container {
+                width: 32px;
+                height: 32px;
+            }
+
+            .brand-name {
+                font-size: 16px;
+            }
+
+            .brand-tagline {
+                display: none;
+            }
+
+            .chat-choice-btn {
+                padding: 6px 10px;
+                font-size: 12px;
             }
         }
     </style>

@@ -2171,8 +2171,60 @@ Content Embedding Pipeline:
             return wrapper;
         }
 
-        // Voice input for choice selection
+        // Voice input for choice selection - stores current context for Whisper callback
+        let currentChoiceWrapper = null;
+        let currentChoices = null;
+
+        // Process voice result for choices (used by both Web Speech and Whisper)
+        function processChoiceVoiceResult(transcript, wrapper, choices) {
+            console.log('Voice input:', transcript);
+
+            // Find matching choice
+            let matchedChoice = null;
+            const lowerTranscript = transcript.toLowerCase();
+            for (const choice of choices) {
+                const label = choice.label.toLowerCase();
+                if (lowerTranscript.includes(label) ||
+                    lowerTranscript.includes(choice.emoji) ||
+                    (label.includes('unwind') && (lowerTranscript.includes('relax') || lowerTranscript.includes('chill') || lowerTranscript.includes('unwind'))) ||
+                    (label.includes('engage') && (lowerTranscript.includes('excit') || lowerTranscript.includes('engage') || lowerTranscript.includes('action'))) ||
+                    (label.includes('laugh') && (lowerTranscript.includes('laugh') || lowerTranscript.includes('funny') || lowerTranscript.includes('comedy'))) ||
+                    (label.includes('feel') && (lowerTranscript.includes('feel') || lowerTranscript.includes('emotion') || lowerTranscript.includes('drama'))) ||
+                    (label.includes('thrill') && (lowerTranscript.includes('thrill') || lowerTranscript.includes('action') || lowerTranscript.includes('suspense'))) ||
+                    (label.includes('think') && (lowerTranscript.includes('think') || lowerTranscript.includes('mind') || lowerTranscript.includes('smart')))) {
+                    matchedChoice = choice;
+                    break;
+                }
+            }
+
+            // Disable buttons and trigger action
+            wrapper.querySelectorAll('.chat-choice-btn').forEach(b => {
+                b.style.opacity = '0.5';
+                b.style.pointerEvents = 'none';
+            });
+            wrapper.querySelector('.mic-choice')?.classList.remove('listening');
+
+            if (matchedChoice) {
+                matchedChoice.action();
+            } else {
+                addMessage(`I heard "${transcript}" - let me pick something for you!`, false, true);
+                // Default to first choice if no match
+                choices[0].action();
+            }
+        }
+
         function startVoiceInputForChoices(wrapper, choices) {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+            // iOS: Use Whisper
+            if (isIOS) {
+                currentChoiceWrapper = wrapper;
+                currentChoices = choices;
+                startWhisperForChoices(wrapper, choices);
+                return;
+            }
+
+            // Desktop: Use Web Speech API
             if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
                 addMessage("Sorry, voice input isn't supported in your browser.", false, true);
                 return;
@@ -2180,7 +2232,6 @@ Content Embedding Pipeline:
 
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             const recognition = new SpeechRecognition();
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
             recognition.continuous = false;
             recognition.interimResults = false;
@@ -2193,47 +2244,13 @@ Content Embedding Pipeline:
             }
 
             recognition.onresult = (event) => {
-                // Get best transcript from alternatives
-                let transcript = event.results[0][0].transcript.toLowerCase();
-                console.log('Voice input:', transcript, 'Confidence:', event.results[0][0].confidence);
-
-                // Find matching choice
-                let matchedChoice = null;
-                for (const choice of choices) {
-                    const label = choice.label.toLowerCase();
-                    if (transcript.includes(label) ||
-                        transcript.includes(choice.emoji) ||
-                        (label.includes('unwind') && (transcript.includes('relax') || transcript.includes('chill') || transcript.includes('unwind'))) ||
-                        (label.includes('engage') && (transcript.includes('excit') || transcript.includes('engage') || transcript.includes('action'))) ||
-                        (label.includes('laugh') && (transcript.includes('laugh') || transcript.includes('funny') || transcript.includes('comedy'))) ||
-                        (label.includes('feel') && (transcript.includes('feel') || transcript.includes('emotion') || transcript.includes('drama'))) ||
-                        (label.includes('thrill') && (transcript.includes('thrill') || transcript.includes('action') || transcript.includes('suspense'))) ||
-                        (label.includes('think') && (transcript.includes('think') || transcript.includes('mind') || transcript.includes('smart')))) {
-                        matchedChoice = choice;
-                        break;
-                    }
-                }
-
-                // Disable buttons and trigger action
-                wrapper.querySelectorAll('.chat-choice-btn').forEach(b => {
-                    b.style.opacity = '0.5';
-                    b.style.pointerEvents = 'none';
-                });
-                wrapper.querySelector('.mic-choice')?.classList.remove('listening');
-
-                if (matchedChoice) {
-                    matchedChoice.action();
-                } else {
-                    addMessage(`I heard "${transcript}" - let me pick something for you!`, false, true);
-                    // Default to first choice if no match
-                    choices[0].action();
-                }
+                let transcript = event.results[0][0].transcript;
+                processChoiceVoiceResult(transcript, wrapper, choices);
             };
 
             recognition.onerror = (event) => {
                 console.error('Speech recognition error:', event.error);
                 wrapper.querySelector('.mic-choice')?.classList.remove('listening');
-                // Vibrate on error
                 if (navigator.vibrate) {
                     navigator.vibrate([100, 50, 100]);
                 }
@@ -2249,6 +2266,116 @@ Content Embedding Pipeline:
             };
 
             recognition.start();
+        }
+
+        // Whisper-based voice input for choices (iOS)
+        let choiceMediaRecorder = null;
+        let choiceAudioChunks = [];
+        let isRecordingChoiceWhisper = false;
+
+        async function startWhisperForChoices(wrapper, choices) {
+            if (isRecordingChoiceWhisper) {
+                stopWhisperForChoices();
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 16000
+                    }
+                });
+
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm')
+                    ? 'audio/webm'
+                    : 'audio/mp4';
+
+                choiceMediaRecorder = new MediaRecorder(stream, { mimeType });
+                choiceAudioChunks = [];
+
+                choiceMediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        choiceAudioChunks.push(event.data);
+                    }
+                };
+
+                choiceMediaRecorder.onstop = async () => {
+                    stream.getTracks().forEach(track => track.stop());
+                    wrapper.querySelector('.mic-choice')?.classList.remove('listening');
+
+                    if (choiceAudioChunks.length === 0) {
+                        addMessage("No audio recorded. Please try again.", false, true);
+                        return;
+                    }
+
+                    addMessage('Processing...', false, false);
+                    const audioBlob = new Blob(choiceAudioChunks, { type: mimeType });
+                    await transcribeChoiceWithWhisper(audioBlob, wrapper, choices);
+                };
+
+                choiceMediaRecorder.start();
+                isRecordingChoiceWhisper = true;
+
+                if (navigator.vibrate) navigator.vibrate(50);
+                addMessage('Listening... Tap mic to stop', false, false);
+
+                // Auto-stop after 8 seconds
+                setTimeout(() => {
+                    if (isRecordingChoiceWhisper) {
+                        stopWhisperForChoices();
+                    }
+                }, 8000);
+
+            } catch (error) {
+                console.error('Failed to start recording:', error);
+                wrapper.querySelector('.mic-choice')?.classList.remove('listening');
+                addMessage("Microphone access denied. Please allow microphone.", false, true);
+            }
+        }
+
+        function stopWhisperForChoices() {
+            if (choiceMediaRecorder && choiceMediaRecorder.state === 'recording') {
+                choiceMediaRecorder.stop();
+                isRecordingChoiceWhisper = false;
+            }
+        }
+
+        async function transcribeChoiceWithWhisper(audioBlob, wrapper, choices) {
+            try {
+                const reader = new FileReader();
+                reader.readAsDataURL(audioBlob);
+
+                reader.onloadend = async () => {
+                    const base64Audio = reader.result.split(',')[1];
+
+                    const response = await fetch('/api/transcribe', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ audio_base64: base64Audio, language: 'en' })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.error) {
+                        console.error('Transcription error:', result.error);
+                        addMessage("Couldn't understand. Please try again or tap a choice.", false, true);
+                        return;
+                    }
+
+                    const transcript = result.text?.trim();
+                    if (transcript) {
+                        if (navigator.vibrate) navigator.vibrate(30);
+                        processChoiceVoiceResult(transcript, wrapper, choices);
+                    } else {
+                        addMessage("Didn't catch that. Please try again.", false, true);
+                    }
+                };
+            } catch (error) {
+                console.error('Whisper API error:', error);
+                addMessage("Voice processing failed. Please tap a choice.", false, true);
+            }
         }
 
         function setQuickChips(chips) {

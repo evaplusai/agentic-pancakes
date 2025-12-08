@@ -2607,39 +2607,87 @@ Content Embedding Pipeline:
             // Check if on iOS Safari (has stricter requirements)
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
             const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            window.isIOSDevice = isIOS; // Store for later use
 
             // Warn if not on HTTPS (required for iOS)
             if (isIOS && window.location.protocol !== 'https:') {
                 console.warn('Voice input requires HTTPS on iOS Safari');
             }
 
-            speechRecognition = new SpeechRecognition();
-            speechRecognition.continuous = false;
-            // Disable interim results on iOS for better accuracy
-            speechRecognition.interimResults = !isIOS;
-            speechRecognition.lang = 'en-US';
-            // Increase max alternatives for better matching
-            speechRecognition.maxAlternatives = 3;
+            // Create new recognition instance each time for iOS compatibility
+            function createRecognition() {
+                const recognition = new SpeechRecognition();
+
+                // iOS Safari works better with these settings
+                if (isIOS) {
+                    recognition.continuous = false;
+                    recognition.interimResults = false; // iOS handles interim poorly
+                    recognition.maxAlternatives = 5; // More alternatives for better matching
+                } else {
+                    recognition.continuous = false;
+                    recognition.interimResults = true;
+                    recognition.maxAlternatives = 3;
+                }
+
+                recognition.lang = 'en-US';
+                return recognition;
+            }
+
+            speechRecognition = createRecognition();
+
+            // Store collected speech for iOS (accumulate chunks)
+            let collectedSpeech = '';
+            let speechTimeout = null;
 
             speechRecognition.onstart = () => {
                 isListening = true;
+                collectedSpeech = '';
                 document.getElementById('micButton').classList.add('listening');
                 // Vibrate on mobile to confirm listening started
                 if (navigator.vibrate) {
                     navigator.vibrate(50);
                 }
                 addMessage('Listening... Speak now!', false, false);
+
+                // iOS: Set a timeout to stop listening after 5 seconds of silence
+                if (isIOS) {
+                    speechTimeout = setTimeout(() => {
+                        if (isListening && collectedSpeech) {
+                            speechRecognition.stop();
+                        }
+                    }, 6000);
+                }
             };
 
             speechRecognition.onend = () => {
                 isListening = false;
                 document.getElementById('micButton').classList.remove('listening');
+                if (speechTimeout) {
+                    clearTimeout(speechTimeout);
+                    speechTimeout = null;
+                }
+
+                // iOS: Process collected speech on end
+                if (isIOS && collectedSpeech.trim()) {
+                    console.log('iOS collected speech:', collectedSpeech);
+                    processVoiceCommand(collectedSpeech.toLowerCase().trim());
+                    collectedSpeech = '';
+                }
+
+                // Recreate recognition for next use (iOS fix)
+                speechRecognition = createRecognition();
+                // Re-attach handlers
+                speechRecognition.onstart = arguments.callee.caller ? speechRecognition.onstart : null;
             };
 
             speechRecognition.onerror = (event) => {
                 console.error('Speech recognition error:', event.error);
                 isListening = false;
                 document.getElementById('micButton').classList.remove('listening');
+                if (speechTimeout) {
+                    clearTimeout(speechTimeout);
+                    speechTimeout = null;
+                }
 
                 // Vibrate on error
                 if (navigator.vibrate) {
@@ -2649,7 +2697,7 @@ Content Embedding Pipeline:
                 if (event.error === 'no-speech') {
                     addMessage("I didn't hear anything. Tap the mic and speak clearly.", false, true);
                 } else if (event.error === 'not-allowed' || event.error === 'permission-denied') {
-                    addMessage("Microphone access denied. Please allow microphone in your browser settings.", false, true);
+                    addMessage("Microphone access denied. Go to Settings > Safari > Microphone to enable.", false, true);
                 } else if (event.error === 'network') {
                     addMessage("Network error. Voice input requires an internet connection.", false, true);
                 } else if (event.error === 'aborted') {
@@ -2657,37 +2705,56 @@ Content Embedding Pipeline:
                 } else {
                     addMessage("Voice input error. Please try again or type your request.", false, true);
                 }
+
+                // Recreate recognition for next use
+                speechRecognition = createRecognition();
             };
 
             speechRecognition.onresult = (event) => {
-                // Get best result from all alternatives
-                let bestTranscript = '';
+                // Get all transcripts
+                let fullTranscript = '';
                 let bestConfidence = 0;
 
                 for (let i = 0; i < event.results.length; i++) {
                     const result = event.results[i];
-                    for (let j = 0; j < result.length; j++) {
-                        if (result[j].confidence > bestConfidence) {
-                            bestConfidence = result[j].confidence;
-                            bestTranscript = result[j].transcript;
+
+                    // iOS: Collect all results
+                    if (isIOS) {
+                        if (result.isFinal) {
+                            // Get best alternative
+                            let best = result[0].transcript;
+                            for (let j = 1; j < result.length; j++) {
+                                if (result[j].confidence > result[0].confidence) {
+                                    best = result[j].transcript;
+                                }
+                            }
+                            collectedSpeech += ' ' + best;
                         }
-                    }
-                    // Use final result
-                    if (result.isFinal) {
-                        bestTranscript = result[0].transcript;
-                        break;
+                    } else {
+                        // Desktop: Use standard approach
+                        for (let j = 0; j < result.length; j++) {
+                            if (result[j].confidence > bestConfidence) {
+                                bestConfidence = result[j].confidence;
+                                fullTranscript = result[j].transcript;
+                            }
+                        }
+                        if (result.isFinal) {
+                            fullTranscript = result[0].transcript;
+                            break;
+                        }
                     }
                 }
 
-                const transcript = bestTranscript.toLowerCase().trim();
-
-                if (event.results[event.results.length - 1].isFinal && transcript) {
-                    console.log('Voice recognized:', transcript, 'Confidence:', bestConfidence);
-                    // Vibrate on successful recognition
-                    if (navigator.vibrate) {
-                        navigator.vibrate(30);
+                // Desktop: Process immediately on final result
+                if (!isIOS) {
+                    const transcript = fullTranscript.toLowerCase().trim();
+                    if (event.results[event.results.length - 1].isFinal && transcript) {
+                        console.log('Voice recognized:', transcript, 'Confidence:', bestConfidence);
+                        if (navigator.vibrate) {
+                            navigator.vibrate(30);
+                        }
+                        processVoiceCommand(transcript);
                     }
-                    processVoiceCommand(transcript);
                 }
             };
 

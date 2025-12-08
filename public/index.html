@@ -258,14 +258,14 @@
         }
 
         .chat-choice-btn.mic-choice.listening {
-            background: rgba(168, 85, 247, 0.3);
-            border-color: #a855f7;
-            animation: micPulse 1.5s ease-in-out infinite;
+            background: rgba(239, 68, 68, 0.3);
+            border-color: rgba(239, 68, 68, 0.8);
+            animation: micPulseRed 1s infinite;
         }
 
-        @keyframes micPulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.4); }
-            50% { box-shadow: 0 0 0 8px rgba(168, 85, 247, 0); }
+        @keyframes micPulseRed {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            50% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
         }
 
         .chat-choice-btn.mic-choice .emoji {
@@ -2268,26 +2268,19 @@ Content Embedding Pipeline:
             recognition.start();
         }
 
-        // Whisper-based voice input for choices (iOS) with STREAMING CHUNK transcription
+        // Whisper-based voice input for choices (iOS) with VAD auto-stop
         let choiceMediaRecorder = null;
         let choiceAudioChunks = [];
         let isRecordingChoiceWhisper = false;
         let choiceAudioContext = null;
         let choiceSilenceTimeout = null;
         let choiceHasDetectedSpeech = false;
-        let choiceStreamingTranscript = '';
-        let choiceChunkCounter = 0;
-        let choiceChunkInterval = null;
-        let choiceMimeType = null;
-        let currentChoicesContext = null; // Store choices for chunk processing
 
         async function startWhisperForChoices(wrapper, choices) {
             if (isRecordingChoiceWhisper) {
                 stopWhisperForChoices(wrapper);
                 return;
             }
-
-            currentChoicesContext = { wrapper, choices }; // Store for chunk processing
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -2298,7 +2291,7 @@ Content Embedding Pipeline:
                     }
                 });
 
-                // Set up audio analysis for voice activity detection
+                // Set up Voice Activity Detection (VAD)
                 choiceAudioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const analyser = choiceAudioContext.createAnalyser();
                 const source = choiceAudioContext.createMediaStreamSource(stream);
@@ -2306,16 +2299,14 @@ Content Embedding Pipeline:
                 analyser.fftSize = 512;
                 const bufferLength = analyser.frequencyBinCount;
                 const dataArray = new Uint8Array(bufferLength);
+                choiceHasDetectedSpeech = false;
 
-                choiceMimeType = MediaRecorder.isTypeSupported('audio/webm')
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm')
                     ? 'audio/webm'
                     : 'audio/mp4';
 
-                choiceMediaRecorder = new MediaRecorder(stream, { mimeType: choiceMimeType });
+                choiceMediaRecorder = new MediaRecorder(stream, { mimeType });
                 choiceAudioChunks = [];
-                choiceHasDetectedSpeech = false;
-                choiceStreamingTranscript = '';
-                choiceChunkCounter = 0;
 
                 choiceMediaRecorder.ondataavailable = (event) => {
                     if (event.data.size > 0) {
@@ -2324,11 +2315,6 @@ Content Embedding Pipeline:
                 };
 
                 choiceMediaRecorder.onstop = async () => {
-                    // Clean up
-                    if (choiceChunkInterval) {
-                        clearInterval(choiceChunkInterval);
-                        choiceChunkInterval = null;
-                    }
                     stream.getTracks().forEach(track => track.stop());
                     if (choiceAudioContext) {
                         choiceAudioContext.close();
@@ -2340,41 +2326,23 @@ Content Embedding Pipeline:
                     }
                     wrapper.querySelector('.mic-choice')?.classList.remove('listening');
 
-                    // If we have streaming transcript, use it
-                    if (choiceStreamingTranscript.trim()) {
-                        console.log('Final choice streaming transcript:', choiceStreamingTranscript);
-                        processChoiceVoiceResult(choiceStreamingTranscript.toLowerCase().trim(), wrapper, choices);
-                        return;
-                    }
-
-                    // Fallback: transcribe all audio if streaming didn't work
                     if (choiceAudioChunks.length === 0) {
                         addMessage("No audio recorded. Please try again.", false, true);
                         return;
                     }
 
                     addMessage('Processing...', false, false);
-                    const audioBlob = new Blob(choiceAudioChunks, { type: choiceMimeType });
+                    const audioBlob = new Blob(choiceAudioChunks, { type: mimeType });
                     await transcribeChoiceWithWhisper(audioBlob, wrapper, choices);
                 };
 
                 choiceMediaRecorder.start(100);
                 isRecordingChoiceWhisper = true;
 
+                // Update UI - red pulse animation
+                wrapper.querySelector('.mic-choice')?.classList.add('listening');
                 if (navigator.vibrate) navigator.vibrate(50);
-                addMessage('Listening...', false, false);
-
-                // Send chunks every 1.5 seconds for near real-time transcription
-                choiceChunkInterval = setInterval(async () => {
-                    if (!isRecordingChoiceWhisper || choiceAudioChunks.length === 0) return;
-
-                    const currentChunks = [...choiceAudioChunks];
-                    const chunkBlob = new Blob(currentChunks, { type: choiceMimeType });
-
-                    if (chunkBlob.size > 5000) {
-                        sendChoiceChunkForTranscription(chunkBlob, choiceChunkCounter++);
-                    }
-                }, 1500);
+                addMessage('Listening... speak now', false, false);
 
                 // Voice Activity Detection loop
                 let silenceStart = null;
@@ -2389,6 +2357,9 @@ Content Embedding Pipeline:
                     const average = dataArray.reduce((a, b) => a + b, 0) / bufferLength;
 
                     if (average > SPEECH_THRESHOLD) {
+                        if (!choiceHasDetectedSpeech) {
+                            addMessage('Hearing you...', false, false);
+                        }
                         choiceHasDetectedSpeech = true;
                         silenceStart = null;
                     }
@@ -2422,45 +2393,7 @@ Content Embedding Pipeline:
             }
         }
 
-        // Send choice audio chunk for fast transcription
-        async function sendChoiceChunkForTranscription(blob, chunkId) {
-            try {
-                const reader = new FileReader();
-                reader.readAsDataURL(blob);
-
-                reader.onloadend = async () => {
-                    const base64Audio = reader.result.split(',')[1];
-
-                    const response = await fetch('/api/transcribe-chunk', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            audio_base64: base64Audio,
-                            language: 'en',
-                            chunk_id: chunkId
-                        })
-                    });
-
-                    const result = await response.json();
-
-                    if (result.text && result.text.trim()) {
-                        choiceStreamingTranscript = result.text.trim();
-                        if (isRecordingChoiceWhisper) {
-                            addMessage(`"${choiceStreamingTranscript}"...`, false, false);
-                        }
-                        console.log(`Choice chunk ${chunkId} transcript:`, result.text);
-                    }
-                };
-            } catch (error) {
-                console.error('Choice chunk transcription error:', error);
-            }
-        }
-
         function stopWhisperForChoices(wrapper) {
-            if (choiceChunkInterval) {
-                clearInterval(choiceChunkInterval);
-                choiceChunkInterval = null;
-            }
             if (choiceMediaRecorder && choiceMediaRecorder.state === 'recording') {
                 choiceMediaRecorder.stop();
                 isRecordingChoiceWhisper = false;
@@ -3057,7 +2990,7 @@ Content Embedding Pipeline:
 
         // ============================================================================
         // Whisper-based Voice Input (for iOS and better accuracy)
-        // With STREAMING CHUNK transcription - sends chunks every 1.5s for near real-time
+        // With Voice Activity Detection - auto-stops on 1.5s silence
         // ============================================================================
 
         let mediaRecorder = null;
@@ -3067,11 +3000,6 @@ Content Embedding Pipeline:
         let analyser = null;
         let silenceTimeout = null;
         let hasDetectedSpeech = false;
-        let streamingTranscript = ''; // Accumulated transcript from chunks
-        let chunkCounter = 0;
-        let chunkInterval = null;
-        let currentStream = null;
-        let streamingMimeType = null;
 
         async function startWhisperRecording() {
             if (isRecordingWhisper) {
@@ -3087,9 +3015,8 @@ Content Embedding Pipeline:
                         sampleRate: 16000
                     }
                 });
-                currentStream = stream;
 
-                // Set up audio analysis for voice activity detection
+                // Set up Voice Activity Detection (VAD)
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 analyser = audioContext.createAnalyser();
                 const source = audioContext.createMediaStreamSource(stream);
@@ -3097,17 +3024,14 @@ Content Embedding Pipeline:
                 analyser.fftSize = 512;
                 const bufferLength = analyser.frequencyBinCount;
                 const dataArray = new Uint8Array(bufferLength);
+                hasDetectedSpeech = false;
 
-                // Use webm for best compatibility, or mp4 for iOS
-                streamingMimeType = MediaRecorder.isTypeSupported('audio/webm')
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm')
                     ? 'audio/webm'
                     : 'audio/mp4';
 
-                mediaRecorder = new MediaRecorder(stream, { mimeType: streamingMimeType });
+                mediaRecorder = new MediaRecorder(stream, { mimeType });
                 audioChunks = [];
-                hasDetectedSpeech = false;
-                streamingTranscript = '';
-                chunkCounter = 0;
 
                 mediaRecorder.ondataavailable = (event) => {
                     if (event.data.size > 0) {
@@ -3116,11 +3040,6 @@ Content Embedding Pipeline:
                 };
 
                 mediaRecorder.onstop = async () => {
-                    // Clean up
-                    if (chunkInterval) {
-                        clearInterval(chunkInterval);
-                        chunkInterval = null;
-                    }
                     stream.getTracks().forEach(track => track.stop());
                     if (audioContext) {
                         audioContext.close();
@@ -3131,51 +3050,29 @@ Content Embedding Pipeline:
                         silenceTimeout = null;
                     }
 
-                    // If we already have streaming transcript, use it
-                    if (streamingTranscript.trim()) {
-                        console.log('Final streaming transcript:', streamingTranscript);
-                        if (navigator.vibrate) navigator.vibrate(30);
-                        processVoiceCommand(streamingTranscript.toLowerCase().trim());
-                        return;
-                    }
-
-                    // Fallback: transcribe all audio if streaming didn't work
                     if (audioChunks.length === 0) {
                         addMessage("No audio recorded. Please try again.", false, true);
                         return;
                     }
 
-                    const audioBlob = new Blob(audioChunks, { type: streamingMimeType });
+                    addMessage('Processing...', false, false);
+                    const audioBlob = new Blob(audioChunks, { type: mimeType });
                     await transcribeWithWhisper(audioBlob);
                 };
 
-                mediaRecorder.start(100); // Collect data every 100ms
+                mediaRecorder.start(100); // Get data every 100ms for smoother VAD
                 isRecordingWhisper = true;
 
-                // Update UI
+                // Update UI - red pulse animation
                 document.getElementById('micButton').classList.add('listening');
                 if (navigator.vibrate) navigator.vibrate(50);
-                addMessage('Listening...', false, false);
-
-                // Send chunks every 1.5 seconds for near real-time transcription
-                chunkInterval = setInterval(async () => {
-                    if (!isRecordingWhisper || audioChunks.length === 0) return;
-
-                    // Get current chunks and send for transcription
-                    const currentChunks = [...audioChunks];
-                    const chunkBlob = new Blob(currentChunks, { type: streamingMimeType });
-
-                    // Only send if we have meaningful audio (> 5KB)
-                    if (chunkBlob.size > 5000) {
-                        sendChunkForTranscription(chunkBlob, chunkCounter++);
-                    }
-                }, 1500);
+                addMessage('Listening... speak now', false, false);
 
                 // Voice Activity Detection loop
                 let silenceStart = null;
-                const SILENCE_THRESHOLD = 15; // Audio level below this = silence
-                const SILENCE_DURATION = 1500; // Stop after 1.5s of silence
-                const SPEECH_THRESHOLD = 25; // Audio level above this = speech
+                const SILENCE_THRESHOLD = 15;
+                const SILENCE_DURATION = 1500; // 1.5 seconds of silence to stop
+                const SPEECH_THRESHOLD = 25;
 
                 function checkAudioLevel() {
                     if (!isRecordingWhisper) return;
@@ -3185,6 +3082,9 @@ Content Embedding Pipeline:
 
                     // Detect speech
                     if (average > SPEECH_THRESHOLD) {
+                        if (!hasDetectedSpeech) {
+                            addMessage('Hearing you...', false, false);
+                        }
                         hasDetectedSpeech = true;
                         silenceStart = null;
                     }
@@ -3194,7 +3094,6 @@ Content Embedding Pipeline:
                         if (!silenceStart) {
                             silenceStart = Date.now();
                         } else if (Date.now() - silenceStart > SILENCE_DURATION) {
-                            // Silence detected for long enough, stop recording
                             stopWhisperRecording();
                             return;
                         }
@@ -3219,54 +3118,11 @@ Content Embedding Pipeline:
             }
         }
 
-        // Send audio chunk for fast transcription (uses tiny model)
-        async function sendChunkForTranscription(blob, chunkId) {
-            try {
-                const reader = new FileReader();
-                reader.readAsDataURL(blob);
-
-                reader.onloadend = async () => {
-                    const base64Audio = reader.result.split(',')[1];
-
-                    const response = await fetch('/api/transcribe-chunk', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            audio_base64: base64Audio,
-                            language: 'en',
-                            chunk_id: chunkId
-                        })
-                    });
-
-                    const result = await response.json();
-
-                    if (result.text && result.text.trim()) {
-                        // Update streaming transcript (use latest chunk as the full transcript so far)
-                        streamingTranscript = result.text.trim();
-                        // Show partial result to user
-                        if (isRecordingWhisper) {
-                            addMessage(`"${streamingTranscript}"...`, false, false);
-                        }
-                        console.log(`Chunk ${chunkId} transcript:`, result.text);
-                    }
-                };
-            } catch (error) {
-                console.error('Chunk transcription error:', error);
-            }
-        }
-
         function stopWhisperRecording() {
-            if (chunkInterval) {
-                clearInterval(chunkInterval);
-                chunkInterval = null;
-            }
             if (mediaRecorder && mediaRecorder.state === 'recording') {
                 mediaRecorder.stop();
                 isRecordingWhisper = false;
                 document.getElementById('micButton').classList.remove('listening');
-                if (!streamingTranscript.trim()) {
-                    addMessage('Processing...', false, false);
-                }
             }
             if (silenceTimeout) {
                 clearTimeout(silenceTimeout);
